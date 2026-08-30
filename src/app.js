@@ -7,7 +7,14 @@ import { makeT, detectLang, validate, STRINGS } from './i18n.js';
 validate(); // 双语缺失就直接炸，别等上线才发现
 
 const $ = (id) => document.getElementById(id);
-const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
+let worker = null;
+/** 首屏不建 worker：建了就会去下 OpenCV 的 wasm。等用户真的选了图再说。 */
+function getWorker() {
+  if (worker) return worker;
+  worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
+  worker.onmessage = onWorkerMessage;
+  return worker;
+}
 
 let lang = detectLang();
 let t = makeT(lang);
@@ -57,7 +64,7 @@ function setStatus(key) { $('statusText').textContent = t(key); }
 function busy(on) { $('busy').hidden = !on; if (on) $('busy').textContent = t('step.processing'); }
 
 /* ---------------- worker bridge ---------------- */
-worker.onmessage = (e) => {
+function onWorkerMessage(e) {
   const { type, reqId } = e.data;
   if (type === 'status') {
     if (e.data.stage === 'loading') { busy(true); $('busy').textContent = t('step.loading'); }
@@ -68,12 +75,12 @@ worker.onmessage = (e) => {
   pending.delete(reqId);
   if (type === 'error') p.reject(new Error(e.data.message));
   else p.resolve(e.data);
-};
+}
 function call(msg, transfer) {
   const reqId = ++reqSeq;
   return new Promise((resolve, reject) => {
     pending.set(reqId, { resolve, reject });
-    worker.postMessage({ ...msg, reqId }, transfer || []);
+    getWorker().postMessage({ ...msg, reqId }, transfer || []);
   });
 }
 
@@ -324,16 +331,12 @@ $('pdfBtn').onclick = async () => {
   if (!docs.length) return;
   busy(true);
   try {
-    const { jsPDF } = await import('jspdf');
-    let pdf = null;
+    const { buildPdf, canvasToJpegBytes } = await import('./pdf.js');
+    const pages = [];
     for (const d of docs) {
       const c = await renderFull(d);
-      const url = c.toDataURL('image/jpeg', 0.92);
-      const orient = c.width >= c.height ? 'l' : 'p';
-      if (!pdf) pdf = new jsPDF({ orientation: orient, unit: 'pt', format: [c.width, c.height] });
-      else pdf.addPage([c.width, c.height], orient);
-      pdf.addImage(url, 'JPEG', 0, 0, c.width, c.height);
+      pages.push({ jpeg: await canvasToJpegBytes(c), width: c.width, height: c.height });
     }
-    pdf.save('flatpage.pdf');
+    saveBlob(buildPdf(pages), 'flatpage.pdf');
   } catch (e) { toast(e.message); console.error(e); } finally { busy(false); }
 };
