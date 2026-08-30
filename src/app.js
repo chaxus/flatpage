@@ -232,14 +232,29 @@ function drawSource() {
 function drawHandles() {
   const d = docs[active];
   if (!d) return;
-  // 把手半径按「显示尺寸 9px」反算回 viewBox 坐标，大图小图手感一致
-  const shown = srcCanvas.getBoundingClientRect().width || srcCanvas.width;
-  const r = (9 / Math.max(shown, 1)) * d.width;
+  // 把屏幕 px 换算成 viewBox 单位，靠的是覆盖层的实际显示宽度。
+  //
+  // 两个试过但不行的写法：
+  //   getBoundingClientRect().width || srcCanvas.width
+  //     布局没完成时前者是 0，于是 fallback 到 canvas 的位图宽度(900)，
+  //     把手在窄屏被算小 2.5 倍。桌面端两个值接近，正好把 bug 藏住。
+  //   getScreenCTM().a
+  //     这里返回单位矩阵，不反映 viewBox 缩放，把手更小(1px)。
+  // 所以：拿真实显示宽度，拿不到就等下一帧再画。
+  const shown = overlay.getBoundingClientRect().width
+             || srcCanvas.getBoundingClientRect().width;
+  if (!shown) { requestAnimationFrame(drawHandles); return; }
+  const px = (n) => (n / shown) * d.width;
+  const r = px(9);        // 看得见的圆点
+  const hit = px(23);     // 命中区 46px 直径 —— 手指按不准 18px 的点
   const pts = d.quad.map((p) => `${p.x},${p.y}`).join(' ');
   overlay.innerHTML =
     `<polygon class="edge" points="${pts}"/>` +
     d.quad.map((p, i) =>
-      `<circle class="handle" data-i="${i}" cx="${p.x}" cy="${p.y}" r="${r}"/>`).join('');
+      `<circle class="handle" cx="${p.x}" cy="${p.y}" r="${r}"/>`).join('') +
+    // 命中区画在最上层，透明；视觉尺寸不变，可点区域大一倍多
+    d.quad.map((p, i) =>
+      `<circle class="grab" data-i="${i}" cx="${p.x}" cy="${p.y}" r="${hit}"/>`).join('');
 }
 
 let dragIdx = -1;
@@ -252,12 +267,11 @@ function toImg(evt) {
   };
 }
 stage.addEventListener('pointerdown', (e) => {
-  const h = e.target.closest?.('.handle');
+  const h = e.target.closest?.('.grab');
   if (!h) return;
   dragIdx = +h.dataset.i;
-  h.classList.add('on');
   stage.setPointerCapture(e.pointerId);
-  e.preventDefault();
+  e.preventDefault();   // 阻止触屏上的滚动/长按选择
 });
 stage.addEventListener('pointermove', (e) => {
   if (dragIdx < 0) return;
@@ -276,6 +290,13 @@ stage.addEventListener('pointerup', (e) => {
   stage.releasePointerCapture?.(e.pointerId);
   drawHandles();
   schedulePreview(true);
+});
+
+// 横竖屏切换 / 窗口缩放后，px 与 viewBox 的比例变了，把手要重算
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => { if (docs[active]) drawHandles(); }, 120);
 });
 
 $('resetBtn').onclick = () => {

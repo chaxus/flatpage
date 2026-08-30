@@ -150,10 +150,11 @@ body.has-docs .hero h1 { font-size: clamp(19px, 2.4vw, 23px); margin: 0; }
 .stage canvas { display: block; border-radius: 4px;
                 max-width: 100%; max-height: 62vh; width: auto; height: auto; }
 .stage svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-.stage .handle { fill: var(--bg); stroke: var(--fg); stroke-width: 2.5; cursor: grab;
-                 vector-effect: non-scaling-stroke; }
-.stage .handle:active { cursor: grabbing; }
-.stage .handle.on { fill: var(--fg); }
+.stage .handle { fill: var(--bg); stroke: var(--fg); stroke-width: 2.5;
+                 vector-effect: non-scaling-stroke; pointer-events: none; }
+/* 透明命中区：视觉是 18px 的圆点，可点范围 46px —— 手指按不准 18px */
+.stage .grab { fill: transparent; stroke: none; cursor: grab; touch-action: none; }
+.stage .grab:active { cursor: grabbing; }
 /* non-scaling-stroke: viewBox 是原图坐标，不加这个描边会被缩到看不见 */
 .stage .edge { fill: none; stroke: var(--fg); stroke-width: 2; stroke-dasharray: 6 4;
                opacity: .9; vector-effect: non-scaling-stroke; }
