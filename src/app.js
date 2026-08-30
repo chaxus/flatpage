@@ -3,6 +3,7 @@
  * 所有 OpenCV 运算在 worker 里；这里只负责画面、拖拽和导出。
  */
 import { makeT, detectLang, validate, STRINGS } from './i18n.js';
+import { LAYOUTS, layoutById, layoutIcon, compose } from './layout.js';
 
 validate(); // 双语缺失就直接炸，别等上线才发现
 
@@ -58,6 +59,8 @@ function applyLang() {
   document.querySelector('meta[name="description"]').content = t('meta.desc');
   if ($('langBtn').tagName !== 'A') $('langBtn').textContent = lang === 'zh' ? 'EN' : '中文';
   if (active >= 0) { setStatus('step.done'); updateDetectHint(); }
+  renderLayoutOpts();
+  updateSheetCount();
 }
 $('langBtn').onclick = (e) => {
   // 生产构建把它换成了带 href 的 <a>，让爬虫能顺着爬到另一语言版本
@@ -217,6 +220,7 @@ function renderStrip() {
   const many = docs.length > 1;
   $('dlAllBtn').hidden = !many;
   $('applyAllBtn').hidden = !many;
+  updateSheetCount();
 }
 
 function remove(i) {
@@ -465,7 +469,46 @@ function paint(canvas, imageData) {
   canvas.getContext('2d').putImageData(imageData, 0, 0);
 }
 
+/* ---------------- print layout ---------------- */
+let layoutId = localStorage.getItem('flatpage.layout') || 'none';
+
+function renderLayoutOpts() {
+  const box = $('layoutOpts');
+  box.innerHTML = '';
+  for (const l of LAYOUTS) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'layout-opt' + (l.id === layoutId ? ' on' : '');
+    b.innerHTML = layoutIcon(l) + `<span>${t('layout.' + l.id)}</span>`;
+    b.onclick = () => {
+      layoutId = l.id;
+      localStorage.setItem('flatpage.layout', layoutId);
+      renderLayoutOpts();
+      updateSheetCount();
+    };
+    box.appendChild(b);
+  }
+}
+
+/** 让用户先知道会印出几张纸，再点导出 */
+function updateSheetCount() {
+  const l = layoutById(layoutId);
+  const perPage = l.page ? l.cols * l.rows : 1;
+  const sheets = Math.max(1, Math.ceil(docs.length / perPage));
+  $('sheetCount').textContent = docs.length ? fmt('layout.sheets', { n: sheets }) : '';
+}
+
 /* ---------------- export ---------------- */
+/** 处理所有页并按当前版式排好，返回待导出的画布数组 */
+async function renderAllComposed() {
+  const out = [];
+  for (let i = 0; i < docs.length; i++) {
+    busy(true, `${t('out.progress')} ${i + 1}/${docs.length}`);
+    out.push(await renderFull(docs[i]));
+  }
+  return compose(out, layoutId);
+}
+
 async function renderFull(d) {
   const r = await call({ type: 'export', id: d.id, quad: d.quad, opts: d.opts || defaultOpts() });
   const c = document.createElement('canvas');
@@ -485,7 +528,9 @@ $('dlBtn').onclick = async () => {
   busy(true);
   try {
     const c = await renderFull(d);
-    const blob = await new Promise((res) => c.toBlob(res, 'image/jpeg', 0.95));
+    // 选了版式就按版式出这一张，跟「全部下载」的行为保持一致
+    const sheet = compose([c], layoutId)[0];
+    const blob = await new Promise((res) => sheet.toBlob(res, 'image/jpeg', 0.95));
     saveBlob(blob, `${d.name}_flat.jpg`);
   } catch (e) { toast(e.message); } finally { busy(false); }
 };
@@ -495,14 +540,15 @@ $('dlAllBtn').onclick = async () => {
   if (!docs.length) return;
   busy(true);
   try {
-    for (let i = 0; i < docs.length; i++) {
-      busy(true, `${t('out.progress')} ${i + 1}/${docs.length}`);
-      const c = await renderFull(docs[i]);
-      const blob = await new Promise((res) => c.toBlob(res, 'image/jpeg', 0.95));
-      saveBlob(blob, `${docs[i].name}_flat.jpg`);
-      if (i < docs.length - 1) await new Promise((r) => setTimeout(r, 350));
+    const sheets = await renderAllComposed();
+    const composed = layoutById(layoutId).page;
+    for (let i = 0; i < sheets.length; i++) {
+      const blob = await new Promise((res) => sheets[i].toBlob(res, 'image/jpeg', 0.95));
+      const name = composed ? `flatpage_${layoutId}_${i + 1}` : `${docs[i].name}_flat`;
+      saveBlob(blob, `${name}.jpg`);
+      if (i < sheets.length - 1) await new Promise((r) => setTimeout(r, 350));
     }
-    toast(fmt('out.savedAll', { n: docs.length }));
+    toast(fmt('out.savedAll', { n: sheets.length }));
   } catch (e) { toast(e.message); } finally { busy(false); }
 };
 
@@ -519,10 +565,9 @@ $('pdfBtn').onclick = async () => {
   busy(true);
   try {
     const { buildPdf, canvasToJpegBytes } = await import('./pdf.js');
+    const sheets = await renderAllComposed();
     const pages = [];
-    for (let i = 0; i < docs.length; i++) {
-      busy(true, `${t('out.progress')} ${i + 1}/${docs.length}`);
-      const c = await renderFull(docs[i]);
+    for (const c of sheets) {
       pages.push({ jpeg: await canvasToJpegBytes(c), width: c.width, height: c.height });
     }
     saveBlob(buildPdf(pages), 'flatpage.pdf');

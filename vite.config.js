@@ -165,25 +165,38 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
+  // 页面（HTML）走 network-first。cache-first 会让部署过的新版本推不到已经
+  // 访问过的用户手上 —— 他们要刷新两次才看得到。HTML 只有几 KB，多一次请求
+  // 换「打开就是最新」值得；离线时照样回缓存。
+  if (req.mode === 'navigate') {
+    e.respondWith((async () => {
+      try {
+        const res = await fetch(req);
+        if (res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(req, copy));
+        }
+        return res;
+      } catch (err) {
+        const cached = await caches.match(req, { ignoreSearch: true })
+                    || await caches.match(BASE, { ignoreSearch: true });
+        if (cached) return cached;
+        throw err;
+      }
+    })());
+    return;
+  }
+
+  // 其余是带内容指纹的静态资源和 wasm，内容一变文件名就变，cache-first 安全
   e.respondWith((async () => {
     const cached = await caches.match(req, { ignoreSearch: true });
     if (cached) return cached;
-    try {
-      const res = await fetch(req);
-      // wasm 和带指纹的静态资源：取到就存，下次离线可用
-      if (res.ok && (url.pathname.endsWith('.wasm') || url.pathname.startsWith(BASE + 'assets/'))) {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(req, copy));
-      }
-      return res;
-    } catch (err) {
-      // 离线且未缓存：导航请求退回首页，其余如实失败
-      if (req.mode === 'navigate') {
-        const shell = await caches.match(BASE, { ignoreSearch: true });
-        if (shell) return shell;
-      }
-      throw err;
+    const res = await fetch(req);
+    if (res.ok && (url.pathname.endsWith('.wasm') || url.pathname.startsWith(BASE + 'assets/'))) {
+      const copy = res.clone();
+      caches.open(CACHE).then((c) => c.put(req, copy));
     }
+    return res;
   })());
 });
 ` });

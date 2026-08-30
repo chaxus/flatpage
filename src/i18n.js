@@ -77,6 +77,18 @@ export const STRINGS = {
   'out.progress': { en: 'Processing', zh: '正在处理' },
   'out.savedAll': { en: 'Saved {n} images', zh: '已保存 {n} 张' },
   'out.applyAll': { en: 'Apply settings to all pages', zh: '设置应用到全部页' },
+
+  'layout.title': { en: 'Print layout', zh: '打印版式' },
+  'layout.hint': {
+    en: 'Fits the pages onto A4 at 300dpi, keeping proportions. For handing in printed copies.',
+    zh: '把页面排进 A4（300dpi），保持比例不变形。用于打印交材料。',
+  },
+  'layout.none': { en: 'No layout — original size', zh: '不拼版 — 保持原尺寸' },
+  'layout.a4-1': { en: 'A4 · one per page', zh: 'A4 · 一页一张' },
+  'layout.a4-2': { en: 'A4 · two per page', zh: 'A4 · 一页两张' },
+  'layout.a4-4': { en: 'A4 · four per page', zh: 'A4 · 一页四张' },
+  'layout.a4-land-1': { en: 'A4 landscape · one per page', zh: 'A4 横向 · 一页一张' },
+  'layout.sheets': { en: '{n} sheet(s)', zh: '{n} 张纸' },
   'out.applied': { en: 'Applied to {n} pages', zh: '已应用到 {n} 页' },
   'out.add': { en: 'Add more pages', zh: '添加更多页' },
   'out.remove': { en: 'Remove', zh: '移除' },
