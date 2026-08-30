@@ -83,6 +83,29 @@ English page had no indexable content either, not just the Chinese one.
 The language switch becomes a real `<a href>` in the build so crawlers follow
 it; in dev it stays a button and swaps text in place.
 
+## Deployment targets
+
+`FLATPAGE_BASE` and `FLATPAGE_ORIGIN` drive every absolute path — asset URLs,
+canonical, hreflang, JSON-LD, the language-switch link and the sitemap.
+
+```bash
+npm run build                                   # root path, bybrowser.com
+npm run build:pages                             # /flatpage/, github.io
+```
+
+A project site on GitHub Pages is served from `/<repo>/`. Building without
+`FLATPAGE_BASE` and deploying there gives you a page whose every asset 404s and
+whose canonical points somewhere else entirely.
+
+```bash
+npm run verify -- /flatpage/
+```
+
+`tools/verify-dist.py` is the single implementation of that check, called by CI
+and locally. Do not inline verification into the workflow: an earlier inline
+`grep -oE '[<CJK range>]'` passed under BSD grep on macOS and failed under GNU
+grep in the runner's C locale, so a correct build failed CI.
+
 ## Verifying a change
 
 Never judge the pipeline by looking at a screenshot. 1px and 3px of residual

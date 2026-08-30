@@ -36,8 +36,11 @@ cat changelog/$(ls changelog | tail -1)   # 上次会话发生了什么
    会让构建失败。文案是构建时预渲染进 HTML 的，**不要改成运行时注入** ——
    那样爬虫看到的是空 `<h1>`，英文版也一样没内容。
 
-7. **「生产能跑」和「dev 能跑」是两件事。** 已经在 UMD 上栽过一次：rollup 的
-   commonjs 插件会遮住只在 dev 暴露的问题。改了 `vendor/` 或构建配置，两边都跑。
+7. **「生产能跑」和「dev 能跑」是两件事**，「本地能跑」和「CI 能跑」也是。
+   已经各栽过一次：UMD 被 rollup 的 commonjs 插件遮住、只在 dev 炸；
+   `grep -oE '[一-龥]'` 在 macOS 能用、在 CI 的 GNU grep + C locale 下报
+   Invalid collation character。**验证逻辑只写一份**（`tools/verify-dist.py`），
+   本地和 CI 调同一个，不要在 workflow 里内联 shell。
 
 ## 加东西时
 
@@ -52,8 +55,14 @@ cat changelog/$(ls changelog | tail -1)   # 上次会话发生了什么
 ## 改完之前
 
 ```bash
-npm run build                      # i18n 缺失 / 预渲染失败会在这里红
-python3 tools/measure-residual.py <导出的成品>   # 超过 3px 会红
+npm run build && npm run verify    # 产物结构 / base 前缀 / 预渲染 / canonical
+python3 tools/measure-residual.py <导出的成品>   # 残余弯曲超过 3px 会红
+```
+
+子路径部署（GitHub Pages）要带 base 校验：
+
+```bash
+npm run build:pages && npm run verify -- /flatpage/
 ```
 
 外加规矩 5 的浏览器端到端验证 —— 这一条没有脚本能替，必须真的跑一遍。
