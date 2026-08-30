@@ -16,7 +16,9 @@ function getWorker() {
   return worker;
 }
 
-let lang = detectLang();
+// 预渲染页面的 lang 属性优先：否则访客直接落在 /zh/ 会被 JS 切回英文
+let lang = (document.documentElement.lang || '').toLowerCase().startsWith('zh')
+  ? 'zh' : (document.documentElement.dataset.forceLang || detectLang());
 let t = makeT(lang);
 const docs = [];        // { id, name, bitmap, width, height, quad, quad0, out, thumbUrl }
 let active = -1;
@@ -32,10 +34,13 @@ function applyLang() {
   }
   document.title = t('meta.title');
   document.querySelector('meta[name="description"]').content = t('meta.desc');
-  $('langBtn').textContent = lang === 'zh' ? 'EN' : '中文';
+  if ($('langBtn').tagName !== 'A') $('langBtn').textContent = lang === 'zh' ? 'EN' : '中文';
   if (active >= 0) setStatus('step.done');
 }
-$('langBtn').onclick = () => {
+$('langBtn').onclick = (e) => {
+  // 生产构建把它换成了带 href 的 <a>，让爬虫能顺着爬到另一语言版本
+  if ($('langBtn').tagName === 'A') return;
+  e.preventDefault();
   lang = lang === 'zh' ? 'en' : 'zh';
   localStorage.setItem('flatpage.lang', lang);
   applyLang();
