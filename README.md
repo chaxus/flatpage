@@ -99,6 +99,17 @@ runtime.
 python dewarp.py IMG_0001.jpg -o out --grid --expand 1.2
 ```
 
+Verify a pipeline change with the objective measure, not by eye — 1px and 3px
+of residual curvature look the same and read very differently:
+
+```bash
+python3 tools/measure-residual.py out/whatever_flat.jpg
+```
+
+- [docs/BUILD.md](docs/BUILD.md) — build pipeline, the custom OpenCV compile,
+  and the two things that will bite you
+- [changelog/](changelog/) — what changed and why, per session
+
 ## Privacy
 
 - No upload, no server, no analytics on the processing path.
@@ -187,6 +198,16 @@ bash tools/build-opencv.sh path/to/opencv
 
 白名单在 `tools/opencv_js.flatpage.config.py`。往 `src/pipeline.js` 里加新的
 OpenCV 调用时必须同步加进白名单，否则运行时会找不到那个函数。
+
+改了管线之后用客观指标验证，不要看截图 —— 1px 和 3px 的残余弯曲肉眼一样：
+
+```bash
+python3 tools/measure-residual.py out/成品.jpg
+```
+
+- [docs/BUILD.md](docs/BUILD.md) — 构建流程、OpenCV 自编译、两个会咬人的坑
+- [changelog/](changelog/) — 每次会话改了什么、为什么
+- [CLAUDE.md](CLAUDE.md) — 在这个仓库里工作的规矩
 
 ## 隐私
 
