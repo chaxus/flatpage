@@ -25,8 +25,15 @@ export function expandQuad(quad, pct) {
   return quad.map((p) => ({ x: (p.x - cx) * k + cx, y: (p.y - cy) * k + cy }));
 }
 
-/** 自动找最大的近四边形轮廓（优先命中表格黑外框） */
-export function findQuadAuto(cv, src, minAreaFrac = 0.06) {
+/**
+ * 自动找页面四角。
+ *
+ * 取「面积落在区间内的最大近四边形轮廓」。上限很关键：拍文档时文档不会占满整个
+ * 画面，一个占了 85% 以上的四边形几乎一定是整张图的边界、或者跨页本子的外轮廓，
+ * 不是我们想裁的那一页。没有上限时它会赢过内部真正的表格框，用户看到的就是
+ * 「框住了整张图」。
+ */
+export function findQuadAuto(cv, src, minAreaFrac = 0.06, maxAreaFrac = 0.85) {
   const scale = 1000 / Math.max(src.rows, src.cols);
   const small = new cv.Mat();
   cv.resize(src, small, new cv.Size(0, 0), scale, scale, cv.INTER_AREA);
@@ -54,12 +61,14 @@ export function findQuadAuto(cv, src, minAreaFrac = 0.06) {
   const hier = new cv.Mat();
   cv.findContours(bw, contours, hier, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
 
+  const frameArea = small.rows * small.cols;
+  const areaCap = maxAreaFrac * frameArea;
   let best = null;
-  let bestArea = minAreaFrac * small.rows * small.cols;
+  let bestArea = minAreaFrac * frameArea;
   for (let i = 0; i < contours.size(); i++) {
     const c = contours.get(i);
     const area = cv.contourArea(c);
-    if (area >= bestArea) {
+    if (area >= bestArea && area <= areaCap) {
       const peri = cv.arcLength(c, true);
       for (const eps of [0.02, 0.03, 0.05]) {
         const ap = new cv.Mat();
@@ -78,8 +87,12 @@ export function findQuadAuto(cv, src, minAreaFrac = 0.06) {
     }
     c.delete();
   }
+  const coverage = best ? bestArea / frameArea : 0;
   [small, gray, bw, k3, contours, hier].forEach((m) => m.delete());
-  return best ? orderQuad(best) : null;
+  if (!best) return null;
+  const quad = orderQuad(best);
+  quad.coverage = coverage;
+  return quad;
 }
 
 /** 四点透视校正 */

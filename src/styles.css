@@ -135,6 +135,31 @@ body.has-docs .hero h1 { font-size: clamp(19px, 2.4vw, 23px); margin: 0; }
 .work { padding: 24px 0 60px; }
 .panes { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
 @media (max-width: 900px) { .panes { grid-template-columns: 1fr; } }
+
+/* ---------- 移动端 ---------- */
+@media (max-width: 640px) {
+  .wrap { padding: 0 14px; }
+  /* 触控目标：30px 的按钮在手机上按不准 */
+  .ghost { height: 38px; padding: 0 12px; font-size: 14px; }
+  .btn.sm { height: 40px; padding: 0 16px; font-size: 14.5px; }
+  .pane h2 { flex-wrap: wrap; row-gap: 8px; padding: 10px 12px; }
+  .pane .body { padding: 12px; }
+  .stage canvas { max-height: 46vh; }
+  .preview-wrap canvas { max-height: 46vh; }
+  .opts { gap: 14px; padding: 12px; }
+  .opt .h { max-width: none; }
+  /* 主操作固定在底部，不用为了导出把页面滚回去 */
+  .actions {
+    position: sticky; bottom: 0; z-index: 8;
+    background: color-mix(in srgb, var(--bg-raised) 94%, transparent);
+    backdrop-filter: blur(8px);
+    border-top: 1px solid var(--line-strong);
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  }
+  .actions .btn.sm { flex: 1 1 auto; }
+  .thumb { width: 76px; }
+  .thumb img, .thumb canvas { height: 56px; }
+}
 .pane { border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-raised); overflow: hidden; }
 .pane h2 {
   margin: 0; font-size: 13px; font-weight: 560; letter-spacing: .01em;
@@ -158,6 +183,22 @@ body.has-docs .hero h1 { font-size: clamp(19px, 2.4vw, 23px); margin: 0; }
 /* non-scaling-stroke: viewBox 是原图坐标，不加这个描边会被缩到看不见 */
 .stage .edge { fill: none; stroke: var(--fg); stroke-width: 2; stroke-dasharray: 6 4;
                opacity: .9; vector-effect: non-scaling-stroke; }
+/* 自动识别失败时的常驻提示 —— toast 3.6 秒就没了，这种需要一直看得见 */
+.hint-warn {
+  margin: 10px 0 0; padding: 9px 12px; border-radius: 6px; font-size: 13px;
+  text-align: left; border: 1px solid var(--line-strong); background: var(--bg-sunken);
+  color: var(--fg);
+}
+/* 拖角点时手指正好盖住那个角 —— 放大镜把被挡住的地方显示在别处 */
+.stage #magnifier {
+  position: absolute; width: 88px; height: 88px; border-radius: 50%;
+  border: 2px solid var(--fg); background: var(--bg);
+  box-shadow: 0 4px 16px rgb(0 0 0 / .28);
+  pointer-events: none; z-index: 6; max-width: none; max-height: none;
+}
+.stage.needs-corners .edge { stroke-dasharray: 4 4; opacity: 1; }
+.stage.needs-corners .handle { fill: var(--fg); }
+
 .preview-wrap { position: relative; min-height: 120px; }
 .preview-wrap canvas { display: block; border-radius: 4px; margin: 0 auto;
                        max-width: 100%; max-height: 62vh; width: auto; height: auto; }

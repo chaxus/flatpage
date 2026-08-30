@@ -97,7 +97,9 @@ self.onmessage = async (e) => {
       post({
         type: 'loaded', id, reqId,
         width: full.cols, height: full.rows,
-        quad, autoDetected: !!quad,
+        quad: quad ? quad.map((p) => ({ x: p.x, y: p.y })) : null,
+        autoDetected: !!quad,
+        coverage: quad ? quad.coverage : 0,
       });
       return;
     }

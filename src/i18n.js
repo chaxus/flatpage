@@ -25,8 +25,8 @@ export const STRINGS = {
   },
   'hero.cta': { en: 'Choose photos', zh: '选择照片' },
   'hero.drop': {
-    en: 'or drop images here — JPG, PNG, HEIC',
-    zh: '或把图片拖进来 — JPG、PNG、HEIC',
+    en: 'drop images here, or paste with ⌘V — JPG, PNG, HEIC',
+    zh: '把图片拖进来，或按 ⌘V 粘贴 — JPG、PNG、HEIC',
   },
 
   'privacy.badge': { en: 'Runs entirely offline', zh: '完全离线运行' },
@@ -46,8 +46,13 @@ export const STRINGS = {
     en: 'We guessed the page edges. Drag any corner to correct it — the preview updates as you drag.',
     zh: '页面边界是自动识别的。拖动任意角点修正，右侧预览会跟着变。',
   },
-  'edit.reset': { en: 'Reset corners', zh: '重置角点' },
+  'edit.reset': { en: 'Redetect', zh: '重新识别' },
   'edit.full': { en: 'Whole image', zh: '整张图' },
+  'edit.notFound': {
+    en: 'Could not find the page automatically — drag the four corners onto it.',
+    zh: '没能自动识别页面边界 —— 请把四个角拖到页面上。',
+  },
+  'edit.paste': { en: 'You can also paste an image with ⌘V / Ctrl+V', zh: '也可以用 ⌘V / Ctrl+V 直接粘贴图片' },
 
   'opt.title': { en: 'Adjustments', zh: '调整' },
   'opt.grid': { en: 'Straighten curved lines', zh: '拉直弯曲' },
@@ -77,6 +82,7 @@ export const STRINGS = {
     en: 'Could not find the page automatically. Drag the corners to mark it yourself.',
     zh: '没能自动找到页面边界。请手动拖动四个角标出来。',
   },
+  'err.noimage': { en: 'No image in the clipboard.', zh: '剪贴板里没有图片。' },
   'err.decode': { en: 'Could not read this file.', zh: '读不出这个文件。' },
   'err.heic': {
     en: 'This HEIC could not be decoded. Try exporting it as JPG first.',

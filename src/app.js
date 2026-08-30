@@ -57,7 +57,7 @@ function applyLang() {
   document.title = t('meta.title');
   document.querySelector('meta[name="description"]').content = t('meta.desc');
   if ($('langBtn').tagName !== 'A') $('langBtn').textContent = lang === 'zh' ? 'EN' : '中文';
-  if (active >= 0) setStatus('step.done');
+  if (active >= 0) { setStatus('step.done'); updateDetectHint(); }
 }
 $('langBtn').onclick = (e) => {
   // 生产构建把它换成了带 href 的 <a>，让爬虫能顺着爬到另一语言版本
@@ -125,6 +125,21 @@ for (const ev of ['dragleave', 'drop']) {
   drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); });
 }
 drop.addEventListener('drop', (e) => intake([...e.dataTransfer.files]));
+
+// 剪贴板粘贴：截图工具、微信、预览里复制的图都能直接进来，省掉存盘再选文件
+window.addEventListener('paste', (e) => {
+  const items = [...(e.clipboardData?.items || [])];
+  const files = items
+    .filter((i) => i.kind === 'file' && i.type.startsWith('image/'))
+    .map((i) => i.getAsFile())
+    .filter(Boolean);
+  if (files.length) {
+    e.preventDefault();
+    intake(files);
+  } else if (e.clipboardData?.types?.includes('Files')) {
+    toast(t('err.noimage'));
+  }
+});
 window.addEventListener('dragover', (e) => e.preventDefault());
 window.addEventListener('drop', (e) => e.preventDefault());
 
@@ -144,10 +159,13 @@ async function intake(files) {
       const forWorker = await createImageBitmap(bitmap);
       doc.bitmap = bitmap;
       const r = await call({ type: 'load', id, bitmap: forWorker }, [forWorker]);
-      doc.quad = r.quad || defaultQuad(doc.width, doc.height);
+      // 检测框占满画面 = 大概率框到了整张图或跨页本子的外轮廓，不是想要的那一页。
+      // 这种结果不能当成功用，否则用户看到的就是「框住了整张图」还不知道为什么。
+      const trustworthy = r.autoDetected && (r.coverage ?? 1) <= 0.82;
+      doc.quad = trustworthy ? r.quad : defaultQuad(doc.width, doc.height);
       doc.quad0 = doc.quad.map((p) => ({ ...p }));
-      doc.autoDetected = r.autoDetected;
-      if (!r.autoDetected) toast(t('err.detect'));
+      doc.autoDetected = trustworthy;
+      doc.coverage = r.coverage ?? 0;
       renderStrip();
       if (active < 0) select(idx); else renderStrip();
     } catch (err) {
@@ -157,6 +175,7 @@ async function intake(files) {
   }
   document.body.classList.toggle('has-docs', docs.length > 0);
   $('work').hidden = docs.length === 0;
+  updateDetectHint();
   if (docs.length) $('work').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
@@ -211,7 +230,19 @@ function select(i) {
   active = i;
   renderStrip();
   drawSource();
+  updateDetectHint();
   schedulePreview(true);
+}
+
+/** 自动识别不可信时，把提示常驻在编辑区，而不是让 toast 一闪而过 */
+function updateDetectHint() {
+  const d = docs[active];
+  const el = $('detectHint');
+  if (!el) return;
+  const failed = d && !d.autoDetected;
+  el.hidden = !failed;
+  if (failed) el.textContent = t('edit.notFound');
+  $('stage')?.classList.toggle('needs-corners', !!failed);
 }
 
 /* ---------------- source canvas + corner handles ---------------- */
@@ -257,6 +288,45 @@ function drawHandles() {
       `<circle class="grab" data-i="${i}" cx="${p.x}" cy="${p.y}" r="${hit}"/>`).join('');
 }
 
+/* ---- 拖动时的放大镜 ---- */
+const magnifier = $('magnifier');
+const MAG_ZOOM = 2.6;
+
+/** 把被手指盖住的那个角显示到别处 */
+function showMagnifier(imgX, imgY) {
+  const d = docs[active];
+  if (!d) return;
+  const rect = srcCanvas.getBoundingClientRect();
+  if (!rect.width) return;
+  const size = magnifier.width;                 // 位图边长
+  const srcSize = size / MAG_ZOOM;              // 从原图取多大一块
+  const ctx = magnifier.getContext('2d');
+  ctx.clearRect(0, 0, size, size);
+  ctx.drawImage(
+    d.bitmap,
+    imgX - srcSize / 2, imgY - srcSize / 2, srcSize, srcSize,
+    0, 0, size, size,
+  );
+  // 十字准星，标出角点落在哪
+  ctx.strokeStyle = 'rgba(255,0,0,.9)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(size / 2, size / 2 - 12); ctx.lineTo(size / 2, size / 2 + 12);
+  ctx.moveTo(size / 2 - 12, size / 2); ctx.lineTo(size / 2 + 12, size / 2);
+  ctx.stroke();
+
+  // 定位：默认在角点上方，靠近顶部时翻到下方，避免贴边看不见
+  const dispX = (imgX / d.width) * rect.width;
+  const dispY = (imgY / d.height) * rect.height;
+  const box = 88;
+  const above = dispY > box + 16;
+  magnifier.style.left = `${Math.max(0, Math.min(rect.width - box, dispX - box / 2))}px`;
+  magnifier.style.top = `${above ? dispY - box - 14 : dispY + 14}px`;
+  magnifier.hidden = false;
+}
+
+const hideMagnifier = () => { magnifier.hidden = true; };
+
 let dragIdx = -1;
 function toImg(evt) {
   const d = docs[active];
@@ -271,6 +341,8 @@ stage.addEventListener('pointerdown', (e) => {
   if (!h) return;
   dragIdx = +h.dataset.i;
   stage.setPointerCapture(e.pointerId);
+  const p0 = docs[active].quad[dragIdx];
+  showMagnifier(p0.x, p0.y);
   e.preventDefault();   // 阻止触屏上的滚动/长按选择
 });
 stage.addEventListener('pointermove', (e) => {
@@ -282,15 +354,18 @@ stage.addEventListener('pointermove', (e) => {
     y: Math.max(0, Math.min(d.height, p.y)),
   };
   drawHandles();
+  showMagnifier(d.quad[dragIdx].x, d.quad[dragIdx].y);
   schedulePreview();
 });
 stage.addEventListener('pointerup', (e) => {
   if (dragIdx < 0) return;
   dragIdx = -1;
   stage.releasePointerCapture?.(e.pointerId);
+  hideMagnifier();
   drawHandles();
   schedulePreview(true);
 });
+stage.addEventListener('pointercancel', () => { dragIdx = -1; hideMagnifier(); });
 
 // 横竖屏切换 / 窗口缩放后，px 与 viewBox 的比例变了，把手要重算
 let resizeTimer;
@@ -299,10 +374,27 @@ window.addEventListener('resize', () => {
   resizeTimer = setTimeout(() => { if (docs[active]) drawHandles(); }, 120);
 });
 
-$('resetBtn').onclick = () => {
+$('resetBtn').onclick = async () => {
   const d = docs[active]; if (!d) return;
-  d.quad = d.quad0.map((p) => ({ ...p }));
-  drawHandles(); schedulePreview(true);
+  // 重新跑一次检测。以前这里是「恢复到 quad0」—— 而 quad0 可能本身就是失败结果，
+  // 于是点了没反应，看起来像坏了。
+  busy(true);
+  try {
+    const bmp = await createImageBitmap(d.bitmap);
+    const r = await call({ type: 'load', id: d.id, bitmap: bmp }, [bmp]);
+    const trustworthy = r.autoDetected && (r.coverage ?? 1) <= 0.82;
+    d.quad = trustworthy ? r.quad : defaultQuad(d.width, d.height);
+    d.quad0 = d.quad.map((p) => ({ ...p }));
+    d.autoDetected = trustworthy;
+    if (!trustworthy) toast(t('err.detect'));
+    updateDetectHint();
+    drawHandles();
+    schedulePreview(true);
+  } catch (e) {
+    toast(e.message);
+  } finally {
+    busy(false);
+  }
 };
 $('fullBtn').onclick = () => {
   const d = docs[active]; if (!d) return;
