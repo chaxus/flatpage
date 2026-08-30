@@ -1,9 +1,127 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><title>dewarp verify</title>
-<style>
- body{font:13px/1.6 ui-monospace,monospace;margin:16px;background:#0a0a0a;color:#eee}
- #log{white-space:pre-wrap;background:#000;padding:10px;border:1px solid #333}
- canvas{max-width:900px;border:1px solid #444;margin-top:12px;display:block}
-</style></head>
-<body><div id="log">booting…</div><canvas id="out"></canvas>
-<script type="module" src="/src/main.js"></script></body></html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FlatPage — Flatten curved photos of documents, in your browser</title>
+<meta name="description" content="Turn a photo of a curved book or booklet page into a flat, cropped, shadow-free scan. Fixes perspective, straightens warped lines, removes shadows. Files never leave your browser.">
+<link rel="canonical" href="https://bybrowser.com/">
+<meta name="robots" content="index,follow">
+<meta property="og:type" content="website">
+<meta property="og:title" content="FlatPage — Flatten curved photos of documents">
+<meta property="og:description" content="Photograph a booklet or bound book, get back a flat, cropped, shadow-free scan. Nothing is uploaded — it runs entirely in your browser and works offline.">
+<meta property="og:url" content="https://bybrowser.com/">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/src/styles.css">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication",
+ "name":"FlatPage","url":"https://bybrowser.com/",
+ "applicationCategory":"MultimediaApplication",
+ "operatingSystem":"Any browser",
+ "offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},
+ "description":"Flatten curved photos of documents entirely in the browser. Perspective correction, curvature straightening and shadow removal, with no upload.",
+ "featureList":["Perspective correction","Curvature straightening from ruled lines","Shadow removal","Multi-page PDF export","Fully offline — no upload"]}
+</script>
+</head>
+<body>
+<header>
+  <div class="wrap hdr">
+    <span class="brand">
+      <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+        <path d="M2 5.2c3.5-1.6 6.5-1.6 10 0v8.2c-3.5-1.6-6.5-1.6-10 0z"
+              fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+        <path d="M15.5 4.2v9.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      FlatPage
+    </span>
+    <span class="sp"></span>
+    <button class="ghost" id="langBtn" type="button" aria-label="Language">中文</button>
+    <button class="ghost" id="themeBtn" type="button" aria-label="Theme">◐</button>
+    <a class="ghost" href="https://github.com/chaxus/flatpage" rel="noopener" target="_blank">GitHub</a>
+  </div>
+</header>
+
+<main>
+  <section class="hero wrap" id="hero">
+    <span class="badge"><span class="dot"></span><span data-i18n="privacy.badge"></span></span>
+    <h1 data-i18n="hero.h1"></h1>
+    <p class="sub" data-i18n="hero.sub"></p>
+    <div class="drop" id="drop">
+      <button class="btn" id="pickBtn" type="button" data-i18n="hero.cta"></button>
+      <div class="hint" data-i18n="hero.drop"></div>
+      <input type="file" id="file" accept="image/*,.heic,.heif" multiple hidden>
+    </div>
+  </section>
+
+  <section class="wrap work" id="work" hidden>
+    <div class="strip" id="strip"></div>
+    <div class="panes">
+      <div class="pane">
+        <h2><span data-i18n="edit.title"></span><span class="sp"></span>
+          <button class="ghost" id="resetBtn" type="button" data-i18n="edit.reset"></button>
+          <button class="ghost" id="fullBtn" type="button" data-i18n="edit.full"></button>
+        </h2>
+        <div class="body">
+          <div class="stage" id="stage">
+            <canvas id="srcCanvas"></canvas>
+            <svg id="overlay" aria-hidden="true"></svg>
+          </div>
+          <p class="meta" style="margin:10px 0 0" data-i18n="edit.hint"></p>
+        </div>
+      </div>
+
+      <div class="pane">
+        <h2><span data-i18n="step.done" id="statusText"></span><span class="sp"></span>
+          <span class="meta" id="metaText"></span>
+        </h2>
+        <div class="body">
+          <div class="preview-wrap">
+            <canvas id="outCanvas"></canvas>
+            <div class="busy" id="busy" hidden></div>
+          </div>
+        </div>
+        <div class="opts">
+          <label class="opt"><input type="checkbox" id="optGrid" checked>
+            <span><span class="t" data-i18n="opt.grid"></span><br><span class="h" data-i18n="opt.gridHint"></span></span></label>
+          <label class="opt"><input type="checkbox" id="optLight" checked>
+            <span><span class="t" data-i18n="opt.light"></span><br><span class="h" data-i18n="opt.lightHint"></span></span></label>
+          <label class="opt"><input type="checkbox" id="optColour" checked>
+            <span><span class="t" data-i18n="opt.colour"></span><br><span class="h" data-i18n="opt.colourHint"></span></span></label>
+        </div>
+        <div class="actions">
+          <button class="btn sm" id="dlBtn" type="button" data-i18n="out.download"></button>
+          <button class="btn sm sec" id="pdfBtn" type="button" data-i18n="out.pdf"></button>
+          <span class="sp"></span>
+          <button class="ghost" id="addBtn" type="button" data-i18n="out.add"></button>
+          <button class="ghost" id="clearBtn" type="button" data-i18n="out.clear"></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="wrap prose">
+    <div class="card">
+      <h2 data-i18n="privacy.title"></h2>
+      <p data-i18n="privacy.body"></p>
+    </div>
+    <h2 data-i18n="tips.title"></h2>
+    <ol>
+      <li data-i18n="tips.1"></li>
+      <li data-i18n="tips.2"></li>
+      <li data-i18n="tips.3"></li>
+      <li data-i18n="tips.4"></li>
+    </ol>
+  </div>
+</main>
+
+<footer><div class="wrap foot">
+  <span>FlatPage</span><span class="sp"></span>
+  <span data-i18n="foot.offline"></span>
+  <a href="https://github.com/chaxus/flatpage" rel="noopener" target="_blank">GitHub</a>
+</div></footer>
+
+<div class="toast" id="toast" hidden></div>
+<script type="module" src="/src/app.js"></script>
+</body>
+</html>

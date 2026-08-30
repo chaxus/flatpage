@@ -12,6 +12,7 @@
     "vite": "^8.2.2"
   },
   "dependencies": {
-    "@techstark/opencv-js": "^5.0.0-release.1"
+    "@techstark/opencv-js": "^5.0.0-release.1",
+    "jspdf": "^4.2.1"
   }
 }
