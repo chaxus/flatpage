@@ -28,10 +28,18 @@ export function expandQuad(quad, pct) {
 /**
  * 自动找页面四角。
  *
- * 取「面积落在区间内的最大近四边形轮廓」。上限很关键：拍文档时文档不会占满整个
- * 画面，一个占了 85% 以上的四边形几乎一定是整张图的边界、或者跨页本子的外轮廓，
- * 不是我们想裁的那一页。没有上限时它会赢过内部真正的表格框，用户看到的就是
- * 「框住了整张图」。
+ * 三层，逐层放宽：
+ *   1. 多组阈值参数下找规整的四边形轮廓（表格外框通常能直接命中）
+ *   2. 找不到四边形，就取最大轮廓的最小外接矩形 —— 页面是矩形，即使轮廓被印章
+ *      和折痕打断，外接矩形仍然接近真值
+ *   3. 都失败返回 null，由调用方退回手动
+ *
+ * 面积上限很关键：拍文档时文档不会占满画面，一个占了 85% 以上的四边形几乎一定是
+ * 整张图的边界或跨页本子的外轮廓，不是要裁的那一页。没有上限时它会赢过内部真正
+ * 的表格框，用户看到的就是「框住了整张图」。
+ *
+ * 单一阈值参数不够：同一套参数在 OpenCV 5.0 上能命中的图，4.x 上会一个四边形都
+ * 找不到（本仓库自建的是 4.x）。多组参数轮流试，成本只是几毫秒。
  */
 export function findQuadAuto(cv, src, minAreaFrac = 0.06, maxAreaFrac = 0.85) {
   const scale = 1000 / Math.max(src.rows, src.cols);
@@ -44,53 +52,80 @@ export function findQuadAuto(cv, src, minAreaFrac = 0.06, maxAreaFrac = 0.85) {
     const clahe = new cv.CLAHE(2.0, new cv.Size(8, 8));
     clahe.apply(gray, gray);
     clahe.delete();
-    findQuadAuto.contrastMode = 'clahe';
   } catch (e) {
     cv.equalizeHist(gray, gray); // 有些 build 不带 CLAHE
-    findQuadAuto.contrastMode = 'equalizeHist: ' + (e.message || e);
   }
   cv.GaussianBlur(gray, gray, new cv.Size(5, 5), 0);
 
-  const bw = new cv.Mat();
-  cv.adaptiveThreshold(gray, bw, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C,
-    cv.THRESH_BINARY_INV, 31, 10);
-  const k3 = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(3, 3));
-  cv.morphologyEx(bw, bw, cv.MORPH_CLOSE, k3, new cv.Point(-1, -1), 2);
-
-  const contours = new cv.MatVector();
-  const hier = new cv.Mat();
-  cv.findContours(bw, contours, hier, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
-
   const frameArea = small.rows * small.cols;
-  const areaCap = maxAreaFrac * frameArea;
-  let best = null;
-  let bestArea = minAreaFrac * frameArea;
-  for (let i = 0; i < contours.size(); i++) {
-    const c = contours.get(i);
-    const area = cv.contourArea(c);
-    if (area >= bestArea && area <= areaCap) {
-      const peri = cv.arcLength(c, true);
-      for (const eps of [0.02, 0.03, 0.05]) {
-        const ap = new cv.Mat();
-        cv.approxPolyDP(c, ap, eps * peri, true);
-        if (ap.rows === 4 && cv.isContourConvex(ap)) {
-          const pts = [];
-          for (let j = 0; j < 4; j++)
-            pts.push({ x: ap.intAt(j, 0) / scale, y: ap.intAt(j, 1) / scale });
-          best = pts;
-          bestArea = area;
-          ap.delete();
-          break;
+  const minArea = minAreaFrac * frameArea;
+  const maxArea = maxAreaFrac * frameArea;
+
+  let result = null;
+  let bestFallback = null;   // 最大轮廓，四边形都找不到时用它的外接矩形
+
+  for (const [block, C] of [[31, 10], [51, 12], [21, 8], [41, 6]]) {
+    const bw = new cv.Mat();
+    cv.adaptiveThreshold(gray, bw, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C,
+      cv.THRESH_BINARY_INV, block, C);
+    const k3 = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(3, 3));
+    cv.morphologyEx(bw, bw, cv.MORPH_CLOSE, k3, new cv.Point(-1, -1), 2);
+
+    const contours = new cv.MatVector();
+    const hier = new cv.Mat();
+    cv.findContours(bw, contours, hier, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
+
+    let best = null;
+    let bestArea = minArea;
+    for (let i = 0; i < contours.size(); i++) {
+      const c = contours.get(i);
+      const area = cv.contourArea(c);
+      if (area >= minArea && area <= maxArea) {
+        if (!bestFallback || area > bestFallback.area) {
+          if (bestFallback) bestFallback.mat.delete();
+          bestFallback = { mat: c.clone(), area };
         }
-        ap.delete();
+        if (area >= bestArea) {
+          const peri = cv.arcLength(c, true);
+          for (const eps of [0.02, 0.03, 0.05, 0.08]) {
+            const ap = new cv.Mat();
+            cv.approxPolyDP(c, ap, eps * peri, true);
+            if (ap.rows === 4 && cv.isContourConvex(ap)) {
+              const pts = [];
+              for (let j = 0; j < 4; j++) pts.push({ x: ap.intAt(j, 0), y: ap.intAt(j, 1) });
+              if (best) best.pts = null;
+              best = { pts, area };
+              bestArea = area;
+              ap.delete();
+              break;
+            }
+            ap.delete();
+          }
+        }
       }
+      c.delete();
     }
-    c.delete();
+    [bw, k3, contours, hier].forEach((m) => m.delete());
+    if (best) { result = best; break; }
   }
-  const coverage = best ? bestArea / frameArea : 0;
-  [small, gray, bw, k3, contours, hier].forEach((m) => m.delete());
-  if (!best) return null;
-  const quad = orderQuad(best);
+
+  // 没有规整四边形：退到最大轮廓的最小外接矩形。页面本来就是矩形，印章和折痕
+  // 打断轮廓时，外接矩形往往仍然接近真值 —— 比直接放弃、退回「整张图」好得多。
+  if (!result && bestFallback) {
+    const rot = cv.minAreaRect(bestFallback.mat);
+    const box = cv.RotatedRect.points(rot);
+    const area = rot.size.width * rot.size.height;
+    if (area >= minArea && area <= maxArea) {
+      result = { pts: box.map((p) => ({ x: p.x, y: p.y })), area };
+    }
+  }
+  if (bestFallback) bestFallback.mat.delete();
+
+  const coverage = result ? result.area / frameArea : 0;
+  [small, gray].forEach((m) => m.delete());
+  if (!result) return null;
+
+  const quad = orderQuad(result.pts.map((p) => ({ x: p.x / scale, y: p.y / scale })));
   quad.coverage = coverage;
   return quad;
 }
