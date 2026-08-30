@@ -89,7 +89,12 @@ function toast(msg) {
   toastTimer = setTimeout(() => (el.hidden = true), 3600);
 }
 function setStatus(key) { $('statusText').textContent = t(key); }
-function busy(on) { $('busy').hidden = !on; if (on) $('busy').textContent = t('step.processing'); }
+function busy(on, text) {
+  $('busy').hidden = !on;
+  if (on) $('busy').textContent = text || t('step.processing');
+}
+const fmt = (key, vals) =>
+  Object.entries(vals).reduce((s2, [k, v]) => s2.replaceAll(`{${k}}`, v), t(key));
 
 /* ---------------- worker bridge ---------------- */
 function onWorkerMessage(e) {
@@ -152,7 +157,7 @@ async function intake(files) {
       const bitmap = await createImageBitmap(f, { imageOrientation: 'from-image' });
       const id = 'd' + Date.now() + Math.random().toString(36).slice(2, 7);
       const doc = { id, name: f.name.replace(/\.[^.]+$/, ''), width: bitmap.width,
-                    height: bitmap.height, quad: null, out: null };
+                    height: bitmap.height, quad: null, out: null, opts: defaultOpts() };
       docs.push(doc);
       const idx = docs.length - 1;
       // bitmap 要在 worker 和主线程都用，克隆一份再转移
@@ -209,6 +214,9 @@ function renderStrip() {
     strip.appendChild(b);
   });
   strip.hidden = docs.length < 2;
+  const many = docs.length > 1;
+  $('dlAllBtn').hidden = !many;
+  $('applyAllBtn').hidden = !many;
 }
 
 function remove(i) {
@@ -228,6 +236,7 @@ $('clearBtn').onclick = () => { while (docs.length) remove(0); };
 
 function select(i) {
   active = i;
+  if (docs[i]?.opts) writeOptsUI(docs[i].opts);
   renderStrip();
   drawSource();
   updateDetectHint();
@@ -404,13 +413,26 @@ $('fullBtn').onclick = () => {
 };
 
 /* ---------------- preview ---------------- */
-const opts = () => ({
+/** 每页各自持有设置；UI 开关是「当前页」的视图。
+ *  以前 opts() 直接读 UI，于是「应用到全部」写进 d.opts 的值根本没人读。 */
+const defaultOpts = () => ({ grid: true, light: 1.0, colour: true });
+const readOptsUI = () => ({
   grid: $('optGrid').checked,
   light: $('optLight').checked ? 1.0 : 0,
   colour: $('optColour').checked,
 });
+function writeOptsUI(o) {
+  $('optGrid').checked = !!o.grid;
+  $('optLight').checked = o.light > 0;
+  $('optColour').checked = !!o.colour;
+}
+const opts = () => docs[active]?.opts || defaultOpts();
+
 for (const id of ['optGrid', 'optLight', 'optColour']) {
-  $(id).onchange = () => schedulePreview(true);
+  $(id).onchange = () => {
+    if (docs[active]) docs[active].opts = readOptsUI();
+    schedulePreview(true);
+  };
 }
 
 let previewTimer, previewToken = 0;
@@ -424,7 +446,7 @@ async function runPreview() {
   const token = ++previewToken;
   busy(true);
   try {
-    const r = await call({ type: 'preview', id: d.id, quad: d.quad, opts: opts() });
+    const r = await call({ type: 'preview', id: d.id, quad: d.quad, opts: d.opts || defaultOpts() });
     if (token !== previewToken) return;   // 拖拽中的旧结果直接丢掉
     paint($('outCanvas'), r.image);
     $('metaText').textContent =
@@ -445,7 +467,7 @@ function paint(canvas, imageData) {
 
 /* ---------------- export ---------------- */
 async function renderFull(d) {
-  const r = await call({ type: 'export', id: d.id, quad: d.quad, opts: opts() });
+  const r = await call({ type: 'export', id: d.id, quad: d.quad, opts: d.opts || defaultOpts() });
   const c = document.createElement('canvas');
   paint(c, r.image);
   return c;
@@ -468,14 +490,39 @@ $('dlBtn').onclick = async () => {
   } catch (e) { toast(e.message); } finally { busy(false); }
 };
 
+// 逐张全分辨率处理并保存。浏览器对连续下载有节流，给每次之间留点间隔。
+$('dlAllBtn').onclick = async () => {
+  if (!docs.length) return;
+  busy(true);
+  try {
+    for (let i = 0; i < docs.length; i++) {
+      busy(true, `${t('out.progress')} ${i + 1}/${docs.length}`);
+      const c = await renderFull(docs[i]);
+      const blob = await new Promise((res) => c.toBlob(res, 'image/jpeg', 0.95));
+      saveBlob(blob, `${docs[i].name}_flat.jpg`);
+      if (i < docs.length - 1) await new Promise((r) => setTimeout(r, 350));
+    }
+    toast(fmt('out.savedAll', { n: docs.length }));
+  } catch (e) { toast(e.message); } finally { busy(false); }
+};
+
+// 当前页的三个开关套用到所有页 —— 同一本证件逐页调一遍很烦
+$('applyAllBtn').onclick = () => {
+  if (docs.length < 2) return;
+  const o = readOptsUI();
+  for (const d of docs) d.opts = { ...o };
+  toast(fmt('out.applied', { n: docs.length }));
+};
+
 $('pdfBtn').onclick = async () => {
   if (!docs.length) return;
   busy(true);
   try {
     const { buildPdf, canvasToJpegBytes } = await import('./pdf.js');
     const pages = [];
-    for (const d of docs) {
-      const c = await renderFull(d);
+    for (let i = 0; i < docs.length; i++) {
+      busy(true, `${t('out.progress')} ${i + 1}/${docs.length}`);
+      const c = await renderFull(docs[i]);
       pages.push({ jpeg: await canvasToJpegBytes(c), width: c.width, height: c.height });
     }
     saveBlob(buildPdf(pages), 'flatpage.pdf');

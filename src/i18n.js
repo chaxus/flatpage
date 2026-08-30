@@ -72,7 +72,12 @@ export const STRINGS = {
   },
 
   'out.download': { en: 'Download JPG', zh: '下载 JPG' },
-  'out.pdf': { en: 'Download all as PDF', zh: '全部导出 PDF' },
+  'out.downloadAll': { en: 'All as JPG', zh: '全部下载 JPG' },
+  'out.pdf': { en: 'All as PDF', zh: '全部导出 PDF' },
+  'out.progress': { en: 'Processing', zh: '正在处理' },
+  'out.savedAll': { en: 'Saved {n} images', zh: '已保存 {n} 张' },
+  'out.applyAll': { en: 'Apply settings to all pages', zh: '设置应用到全部页' },
+  'out.applied': { en: 'Applied to {n} pages', zh: '已应用到 {n} 页' },
   'out.add': { en: 'Add more pages', zh: '添加更多页' },
   'out.remove': { en: 'Remove', zh: '移除' },
   'out.clear': { en: 'Clear all', zh: '全部清除' },

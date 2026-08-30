@@ -12,7 +12,7 @@ cat changelog/$(ls changelog | tail -1)   # 上次会话发生了什么
 
 构建流程、OpenCV 自编译、双语预渲染的细节在 [docs/BUILD.md](docs/BUILD.md)。
 
-## 七条会伤人的规矩
+## 八条会伤人的规矩
 
 1. **`private-samples/` 里是真实身份证件。** 已 gitignore，但提交前自己看一眼
    `git status`。这个仓库是公开的。
@@ -25,18 +25,23 @@ cat changelog/$(ls changelog | tail -1)   # 上次会话发生了什么
    `opencv.js` 必须过 `tools/patch-opencv-umd.py`（UMD → ESM）。忘了这步生产构建
    照样能跑，**dev 白屏** —— 见 BUILD.md 里的原因。
 
-4. **判断效果不要看截图。** 1px 和 3px 的残余弯曲肉眼一样，OCR 不一样。
+4. **改检测参数必须两张样张都测。** 只测一张会漏掉回归 —— 为难例放宽
+   approxPolyDP 容差曾让第二张成功、同时把第一张框成完全不同的区域，
+   只看第二张会以为「修好了」。样张和预期数字在
+   `private-samples/BASELINE.md`（该目录已 gitignore，里面是真实证件）。
+
+5. **判断效果不要看截图。** 1px 和 3px 的残余弯曲肉眼一样，OCR 不一样。
    跑 `python3 tools/measure-residual.py 成品.jpg`，它超过 3px 会红。
    基线数字在 [changelog/2026-08-30-initial.md](changelog/2026-08-30-initial.md)。
 
-5. **预览和导出是两条精度路径**（缩略图 vs 全分辨率）。**测一条不能说明另一条。**
+6. **预览和导出是两条精度路径**（缩略图 vs 全分辨率）。**测一条不能说明另一条。**
    端到端验证 = 真浏览器里处理一张装订文档照片 + 导出 + 跑第 4 条的脚本。
 
-6. **双语文案两边都要写**（`src/i18n.js` 一个 key 下并列）。缺一边 `validate()`
+7. **双语文案两边都要写**（`src/i18n.js` 一个 key 下并列）。缺一边 `validate()`
    会让构建失败。文案是构建时预渲染进 HTML 的，**不要改成运行时注入** ——
    那样爬虫看到的是空 `<h1>`，英文版也一样没内容。
 
-7. **「生产能跑」和「dev 能跑」是两件事**，「本地能跑」和「CI 能跑」也是。
+8. **「生产能跑」和「dev 能跑」是两件事**，「本地能跑」和「CI 能跑」也是。
    已经各栽过一次：UMD 被 rollup 的 commonjs 插件遮住、只在 dev 炸；
    `grep -oE '[一-龥]'` 在 macOS 能用、在 CI 的 GNU grep + C locale 下报
    Invalid collation character。**验证逻辑只写一份**（`tools/verify-dist.py`），

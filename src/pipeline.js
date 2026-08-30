@@ -87,7 +87,9 @@ export function findQuadAuto(cv, src, minAreaFrac = 0.06, maxAreaFrac = 0.85) {
         }
         if (area >= bestArea) {
           const peri = cv.arcLength(c, true);
-          for (const eps of [0.02, 0.03, 0.05, 0.08]) {
+          // eps 不要再放宽：0.08 会把不规则的大轮廓也近似成四边形，让它凭面积
+          // 压过真正的表格框（实测会把一张原本正确的图框成完全不同的区域）
+          for (const eps of [0.02, 0.03, 0.05]) {
             const ap = new cv.Mat();
             cv.approxPolyDP(c, ap, eps * peri, true);
             if (ap.rows === 4 && cv.isContourConvex(ap)) {
