@@ -39,20 +39,10 @@ jobs:
       # GitHub Pages 默认走 Jekyll，会吞掉下划线开头的路径
       - run: touch dist/.nojekyll
 
+      # 和本地跑的是同一个脚本 —— 之前内联 shell 里的 grep -oE '[一-龥]'
+      # 在 macOS 能用、在 CI 的 GNU grep + C locale 下报 Invalid collation character
       - name: Verify build output
-        run: |
-          set -e
-          test -f dist/index.html || { echo "缺 index.html"; exit 1; }
-          test -f dist/zh/index.html || { echo "缺中文版"; exit 1; }
-          test -f dist/sitemap.xml || { echo "缺 sitemap"; exit 1; }
-          ls dist/assets/*.wasm >/dev/null || { echo "缺 opencv wasm"; exit 1; }
-          # 子路径部署最容易错的就是资源前缀，直接断言
-          grep -q 'src="/${{ github.event.repository.name }}/assets/' dist/index.html \
-            || { echo "资源路径没带 base 前缀"; exit 1; }
-          # 中文版必须真的有中文，防止预渲染悄悄退化成空壳
-          n=$(grep -oE '[一-龥]' dist/zh/index.html | wc -l)
-          [ "$n" -gt 300 ] || { echo "中文版只有 $n 个中文字符，预渲染可能失效"; exit 1; }
-          echo "构建产物检查通过（中文字符 $n 个）"
+        run: python3 tools/verify-dist.py dist "/${{ github.event.repository.name }}/"
 
       - uses: actions/upload-pages-artifact@v3
         with:
