@@ -24,6 +24,16 @@ export const STRINGS = {
     zh: '拍一本户口本、一页装订的书、一张证件 —— 得到裁切好、无阴影、不扭曲的扫描件。没有上传：全部运算在你的浏览器里完成，断网也能用。',
   },
   'hero.cta': { en: 'Choose photos', zh: '选择照片' },
+  'hero.paste': { en: 'Paste', zh: '粘贴' },
+  'paste.hint': { en: 'or press ⌘V / Ctrl+V anywhere on this page', zh: '或在页面任意位置按 ⌘V / Ctrl+V' },
+  'paste.denied': {
+    en: 'The browser blocked clipboard access — press ⌘V / Ctrl+V instead.',
+    zh: '浏览器拒绝了剪贴板访问 —— 直接按 ⌘V / Ctrl+V 即可。',
+  },
+  'paste.unsupported': {
+    en: 'This browser cannot read the clipboard on click — press ⌘V / Ctrl+V instead.',
+    zh: '此浏览器不支持点击读取剪贴板 —— 直接按 ⌘V / Ctrl+V 即可。',
+  },
   'hero.drop': {
     en: 'drop images here, or paste with ⌘V — JPG, PNG, HEIC',
     zh: '把图片拖进来，或按 ⌘V 粘贴 — JPG、PNG、HEIC',

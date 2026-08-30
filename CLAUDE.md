@@ -72,6 +72,18 @@ npm run build:pages && npm run verify -- /flatpage/
 
 外加规矩 5 的浏览器端到端验证 —— 这一条没有脚本能替，必须真的跑一遍。
 
+## 部署后别急着验证
+
+CF Pages 有传播窗口：HTML 可能已更新而 assets 还没到，页面拿到 404 的样式表
+（Content-Type 是 text/html，被浏览器按 MIME 拒绝）或 404 的入口 JS，整站看起来
+是坏的，几秒后自愈。**已经因此误判过两次功能坏了。**
+
+```bash
+bash tools/wait-deploy.sh          # 查 HTML 引用的所有资源，含 Content-Type
+```
+
+只查入口 JS 不够 —— 第二次踩坑正是 JS 好了而 CSS 还没到。
+
 ## 验证离线时注意
 
 **CDP / DevTools 的离线模拟不拦截经过 Service Worker 的请求。** 模拟离线后页面

@@ -50,7 +50,10 @@
     <h1 data-i18n="hero.h1"></h1>
     <p class="sub" data-i18n="hero.sub"></p>
     <div class="drop" id="drop">
-      <button class="btn" id="pickBtn" type="button" data-i18n="hero.cta"></button>
+      <div class="drop-actions">
+        <button class="btn" id="pickBtn" type="button" data-i18n="hero.cta"></button>
+        <button class="btn sec" id="pasteBtn" type="button" data-i18n="hero.paste"></button>
+      </div>
       <div class="hint" data-i18n="hero.drop"></div>
       <input type="file" id="file" accept="image/*,.heic,.heif" multiple hidden>
     </div>
@@ -104,6 +107,7 @@
           <button class="btn sm sec" id="pdfBtn" type="button" data-i18n="out.pdf"></button>
           <span class="sp"></span>
           <button class="ghost" id="applyAllBtn" type="button" data-i18n="out.applyAll" hidden></button>
+          <button class="ghost" id="pasteBtn2" type="button" data-i18n="hero.paste"></button>
           <button class="ghost" id="addBtn" type="button" data-i18n="out.add"></button>
           <button class="ghost" id="clearBtn" type="button" data-i18n="out.clear"></button>
         </div>

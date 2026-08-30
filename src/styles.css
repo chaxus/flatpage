@@ -128,7 +128,10 @@ body.has-docs .hero h1 { font-size: clamp(19px, 2.4vw, 23px); margin: 0; }
 .btn.sm { height: 32px; padding: 0 13px; font-size: 13.5px; }
 .btn.sec { background: transparent; color: var(--fg); border: 1px solid var(--line-strong); }
 .btn.sec:hover { background: var(--bg-sunken); }
+.drop-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 .drop .hint { margin-top: 12px; color: var(--fg-faint); font-size: 13.5px; }
+/* 页面获得焦点时提示可以直接粘贴 */
+.drop:focus-within { border-color: var(--fg); }
 
 /* ---------- workspace ---------- */
 #work[hidden] { display: none !important; }

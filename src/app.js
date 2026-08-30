@@ -134,13 +134,39 @@ for (const ev of ['dragleave', 'drop']) {
 }
 drop.addEventListener('drop', (e) => intake([...e.dataTransfer.files]));
 
-// 剪贴板粘贴：截图工具、微信、预览里复制的图都能直接进来，省掉存盘再选文件
+/**
+ * 主动读剪贴板。⌘V 全局监听一直都在，但有图之后 hero 折叠、那句提示就看不见了，
+ * 用户没办法知道还能粘贴 —— 所以两个地方都放一个明确的按钮。
+ */
+async function pasteFromClipboard() {
+  if (!navigator.clipboard?.read) { toast(t('paste.unsupported')); return; }
+  try {
+    const items = await navigator.clipboard.read();
+    const files = [];
+    for (const item of items) {
+      const type = item.types.find((ty) => ty.startsWith('image/'));
+      if (!type) continue;
+      const blob = await item.getType(type);
+      const ext = type.split('/')[1]?.replace('jpeg', 'jpg') || 'png';
+      files.push(new File([blob], `pasted-${Date.now()}.${ext}`, { type }));
+    }
+    if (files.length) intake(files);
+    else toast(t('err.noimage'));
+  } catch (err) {
+    // 权限被拒 / 不在安全上下文 / 无用户手势
+    toast(t('paste.denied'));
+  }
+}
+$('pasteBtn').onclick = pasteFromClipboard;
+$('pasteBtn2').onclick = pasteFromClipboard;
+
+// 键盘粘贴：截图工具、微信、预览里复制的图都能直接进来，省掉存盘再选文件
 window.addEventListener('paste', (e) => {
   const items = [...(e.clipboardData?.items || [])];
   const files = items
-    .filter((i) => i.kind === 'file' && i.type.startsWith('image/'))
+    .filter((i) => i.kind === 'file')
     .map((i) => i.getAsFile())
-    .filter(Boolean);
+    .filter((f) => f && (/^image\//.test(f.type) || /\.(jpe?g|png|hei[cf]|webp|tiff?)$/i.test(f.name)));
   if (files.length) {
     e.preventDefault();
     intake(files);
