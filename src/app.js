@@ -3,7 +3,9 @@
  * 所有 OpenCV 运算在 worker 里；这里只负责画面、拖拽和导出。
  */
 import { makeT, detectLang, validate, STRINGS } from './i18n.js';
-import { LAYOUTS, layoutById, layoutIcon, compose } from './layout.js';
+import {
+  LAYOUTS, layoutById, layoutIcon, compose, autoArrange, composeFree, A4,
+} from './layout.js';
 
 validate(); // 双语缺失就直接炸，别等上线才发现
 
@@ -59,8 +61,10 @@ function applyLang() {
   document.querySelector('meta[name="description"]').content = t('meta.desc');
   if ($('langBtn').tagName !== 'A') $('langBtn').textContent = lang === 'zh' ? 'EN' : '中文';
   if (active >= 0) { setStatus('step.done'); updateDetectHint(); }
-  renderLayoutOpts();
-  updateSheetCount();
+  // 版式按钮 / 画布的刷新不放这里：applyLang 在模块顶部就会执行一次，那时
+  // 画布那一段的 const（isFree、sheet）还在 TDZ，压缩后表现为「不是函数」。
+  refreshChrome?.();
+  if (isFree()) { ensureFreeItems(); renderSheet(); }
 }
 $('langBtn').onclick = (e) => {
   // 生产构建把它换成了带 href 的 <a>，让爬虫能顺着爬到另一语言版本
@@ -479,6 +483,10 @@ async function runPreview() {
     const r = await call({ type: 'preview', id: d.id, quad: d.quad, opts: d.opts || defaultOpts() });
     if (token !== previewToken) return;   // 拖拽中的旧结果直接丢掉
     paint($('outCanvas'), r.image);
+    // 画布编辑器要显示这一页，缓存预览分辨率的副本 —— 全分辨率留到导出
+    d.preview = d.preview || document.createElement('canvas');
+    paint(d.preview, r.image);
+    if (isFree()) syncFreeItem(d);
     $('metaText').textContent =
       `${r.image.width}×${r.image.height}` +
       (r.lines ? `  ·  ${r.lines} ${lang === 'zh' ? '条线' : 'lines'}` : '');
@@ -511,6 +519,7 @@ function renderLayoutOpts() {
       localStorage.setItem('flatpage.layout', layoutId);
       renderLayoutOpts();
       updateSheetCount();
+      updateModeUI();
     };
     box.appendChild(b);
   }
@@ -519,14 +528,207 @@ function renderLayoutOpts() {
 /** 让用户先知道会印出几张纸，再点导出 */
 function updateSheetCount() {
   const l = layoutById(layoutId);
+  if (l.free) { $('sheetCount').textContent = docs.length ? fmt('layout.sheets', { n: 1 }) : ''; return; }
   const perPage = l.page ? l.cols * l.rows : 1;
   const sheets = Math.max(1, Math.ceil(docs.length / perPage));
   $('sheetCount').textContent = docs.length ? fmt('layout.sheets', { n: sheets }) : '';
 }
 
+/* ---------------- 自由排布画布 ---------------- */
+let freeItems = [];        // { docId, box: {x,y,w,h} }  box 是 0~1 的纸张比例
+function isFree() { return layoutById(layoutId).free === true; }
+
+/** 按当前页自动铺一遍。页数变了、或者用户点「重新自动排」时调用。 */
+/** 惰性取，别在模块顶层就求值 */
+const sheetEl = () => $('sheet');
+
+function autoArrangeAll() {
+  const sizes = docs.map((d) => ({
+    w: d.preview?.width || d.width,
+    h: d.preview?.height || d.height,
+  }));
+  const boxes = autoArrange(sizes, A4);
+  freeItems = docs.map((d, i) => ({ docId: d.id, box: boxes[i] }));
+  renderSheet();
+}
+
+/** 页集合和已有摆放对不上时（新增/删除页），重排 */
+function ensureFreeItems() {
+  const ids = docs.map((d) => d.id).join(',');
+  const cur = freeItems.map((it) => it.docId).join(',');
+  if (ids !== cur) autoArrangeAll();
+}
+
+function syncFreeItem(d) {
+  const el = sheetEl().querySelector(`[data-doc="${d.id}"] canvas`);
+  if (el && d.preview) {
+    el.width = d.preview.width;
+    el.height = d.preview.height;
+    el.getContext('2d').drawImage(d.preview, 0, 0);
+  }
+}
+
+let selectedItem = null;
+
+function renderSheet() {
+  const sheet = sheetEl();
+  sheet.innerHTML = '';
+  for (const it of freeItems) {
+    const d = docs.find((x) => x.id === it.docId);
+    if (!d) continue;
+    const el = document.createElement('div');
+    el.className = 'c-item' + (selectedItem === it.docId ? ' on' : '');
+    el.dataset.doc = d.id;
+    el.style.left = `${it.box.x * 100}%`;
+    el.style.top = `${it.box.y * 100}%`;
+    el.style.width = `${it.box.w * 100}%`;
+    el.style.height = `${it.box.h * 100}%`;
+    const c = document.createElement('canvas');
+    if (d.preview) {
+      c.width = d.preview.width; c.height = d.preview.height;
+      c.getContext('2d').drawImage(d.preview, 0, 0);
+    }
+    el.appendChild(c);
+    const h = document.createElement('div');
+    h.className = 'c-handle';
+    el.appendChild(h);
+    sheet.appendChild(el);
+  }
+}
+
+/* 拖动 / 缩放：坐标一律换算成纸张比例，跟显示尺寸解耦 */
+let drag = null;
+sheetEl().addEventListener('pointerdown', (e) => {
+  const el = e.target.closest?.('.c-item');
+  if (!el) {
+    selectedItem = null;
+    for (const n of sheetEl().querySelectorAll('.c-item')) n.classList.remove('on');
+    return;
+  }
+  const it = freeItems.find((x) => x.docId === el.dataset.doc);
+  if (!it) return;
+  selectedItem = it.docId;
+  const r = sheetEl().getBoundingClientRect();
+  drag = {
+    it,
+    mode: e.target.classList.contains('c-handle') ? 'resize' : 'move',
+    px: e.clientX, py: e.clientY,
+    box: { ...it.box },
+    sheetW: r.width, sheetH: r.height,
+  };
+  try { sheetEl().setPointerCapture(e.pointerId); } catch (_) { /* 合成事件没有真实指针 */ }
+  // 只切选中样式，不要重建 DOM —— 重建会让正在拖的节点被换掉
+  for (const n of sheetEl().querySelectorAll('.c-item')) {
+    n.classList.toggle('on', n.dataset.doc === selectedItem);
+  }
+  e.preventDefault();
+});
+sheetEl().addEventListener('pointermove', (e) => {
+  if (!drag) return;
+  const dx = (e.clientX - drag.px) / drag.sheetW;
+  const dy = (e.clientY - drag.py) / drag.sheetH;
+  const b = drag.box;
+  const el = sheetEl().querySelector(`[data-doc="${drag.it.docId}"]`);
+  if (drag.mode === 'move') {
+    // 留在纸内。出界的部分打印时就是丢内容，不能让它悄悄发生。
+    // 图比纸还大时反过来夹（允许负坐标），否则会被卡死在角上。
+    const clamp = (v, size) => (size >= 1
+      ? Math.min(0, Math.max(1 - size, v))
+      : Math.max(0, Math.min(1 - size, v)));
+    drag.it.box.x = clamp(b.x + dx, b.w);
+    drag.it.box.y = clamp(b.y + dy, b.h);
+  } else {
+    const ratio = b.h / b.w;                 // 等比缩放，证件不能变形
+    // 上限按「宽或高先顶到纸边」算，放大到超出纸张没有意义
+    const maxW = Math.min(1, 1 / ratio);
+    const w = Math.max(0.06, Math.min(maxW, b.w + dx));
+    drag.it.box.w = w;
+    drag.it.box.h = w * ratio;
+    drag.it.box.x = Math.max(0, Math.min(1 - w, drag.it.box.x));
+    drag.it.box.y = Math.max(0, Math.min(1 - drag.it.box.h, drag.it.box.y));
+  }
+  if (el) {
+    el.style.left = `${drag.it.box.x * 100}%`;
+    el.style.top = `${drag.it.box.y * 100}%`;
+    el.style.width = `${drag.it.box.w * 100}%`;
+    el.style.height = `${drag.it.box.h * 100}%`;
+  }
+});
+const endDrag = (e) => {
+  if (!drag) return;
+  drag = null;
+  sheetEl().releasePointerCapture?.(e.pointerId);
+};
+sheetEl().addEventListener('pointerup', endDrag);
+sheetEl().addEventListener('pointercancel', endDrag);
+
+$('rearrangeBtn').onclick = () => { selectedItem = null; autoArrangeAll(); };
+$('frontBtn').onclick = () => {
+  if (!selectedItem) return;
+  const i = freeItems.findIndex((x) => x.docId === selectedItem);
+  if (i >= 0) freeItems.push(freeItems.splice(i, 1)[0]);
+  renderSheet();
+};
+
+/** 版式按钮 + 张数 + 画布模式，一起刷新。只能在模块所有定义之后调用。 */
+function refreshChrome() {
+  renderLayoutOpts();
+  updateSheetCount();
+  updateModeUI();
+}
+
+/**
+ * 画布上每一页都要有图。预览只会为「当前选中页」生成，所以切到自由排布时
+ * 得把其余页补上，否则它们在画布里是空框。用预览分辨率，快。
+ */
+async function ensureAllPreviews() {
+  const missing = docs.filter((d) => !d.preview);
+  if (!missing.length) return;
+  busy(true);
+  try {
+    for (let i = 0; i < missing.length; i++) {
+      const d = missing[i];
+      busy(true, `${t('out.progress')} ${i + 1}/${missing.length}`);
+      const r = await call({ type: 'preview', id: d.id, quad: d.quad,
+                             opts: d.opts || defaultOpts() });
+      d.preview = document.createElement('canvas');
+      paint(d.preview, r.image);
+      syncFreeItem(d);
+    }
+  } catch (e) {
+    toast(e.message);
+  } finally {
+    busy(false);
+  }
+}
+
+/** free 模式时用画布替换普通预览 */
+function updateModeUI() {
+  const free = isFree();
+  $('sheetWrap').hidden = !free;
+  $('outCanvas').parentElement.hidden = free;
+  if (free) {
+    ensureFreeItems();
+    renderSheet();
+    ensureAllPreviews().then(() => { ensureFreeItems(); renderSheet(); });
+  }
+}
+
 /* ---------------- export ---------------- */
 /** 处理所有页并按当前版式排好，返回待导出的画布数组 */
 async function renderAllComposed() {
+  if (isFree()) {
+    // 画布上摆的是预览图，导出时按同一套比例坐标重绘全分辨率
+    const placed = [];
+    for (let i = 0; i < freeItems.length; i++) {
+      const it = freeItems[i];
+      const d = docs.find((x) => x.id === it.docId);
+      if (!d) continue;
+      busy(true, `${t('out.progress')} ${i + 1}/${freeItems.length}`);
+      placed.push({ canvas: await renderFull(d), box: it.box });
+    }
+    return composeFree(placed, A4);
+  }
   const out = [];
   for (let i = 0; i < docs.length; i++) {
     busy(true, `${t('out.progress')} ${i + 1}/${docs.length}`);
@@ -553,10 +755,15 @@ $('dlBtn').onclick = async () => {
   const d = docs[active]; if (!d) return;
   busy(true);
   try {
-    const c = await renderFull(d);
-    // 选了版式就按版式出这一张，跟「全部下载」的行为保持一致
-    const sheet = compose([c], layoutId)[0];
-    const blob = await new Promise((res) => sheet.toBlob(res, 'image/jpeg', 0.95));
+    let sheetCanvas;
+    if (isFree()) {
+      sheetCanvas = (await renderAllComposed())[0];
+    } else {
+      const c = await renderFull(d);
+      // 选了版式就按版式出，跟「全部下载」的行为保持一致
+      sheetCanvas = compose([c], layoutId)[0];
+    }
+    const blob = await new Promise((res) => sheetCanvas.toBlob(res, 'image/jpeg', 0.95));
     saveBlob(blob, `${d.name}_flat.jpg`);
   } catch (e) { toast(e.message); } finally { busy(false); }
 };
@@ -599,3 +806,6 @@ $('pdfBtn').onclick = async () => {
     saveBlob(buildPdf(pages), 'flatpage.pdf');
   } catch (e) { toast(e.message); console.error(e); } finally { busy(false); }
 };
+
+// 所有定义就绪之后再做首次渲染
+refreshChrome();

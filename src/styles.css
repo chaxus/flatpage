@@ -148,9 +148,40 @@ body.has-docs .hero h1 { font-size: clamp(19px, 2.4vw, 23px); margin: 0; }
   .pane h2 { flex-wrap: wrap; row-gap: 8px; padding: 10px 12px; }
   .pane .body { padding: 12px; }
   .stage canvas { max-height: 46vh; }
+  .sheet { height: 52vh; max-height: 52vh; }
+  .c-handle { width: 26px; height: 26px; right: -11px; bottom: -11px; }
   .preview-wrap canvas { max-height: 46vh; }
   .opts { gap: 14px; padding: 12px; }
-  .layout-row { padding: 12px; }
+  /* ---------- 自由排布画布 ---------- */
+.sheet-wrap { display: block; }
+.sheet {
+  position: relative; margin: 0 auto;
+  aspect-ratio: 210 / 297;          /* A4 */
+  max-height: 58vh; width: auto; height: 58vh; max-width: 100%;
+  background: #fff;
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 1px 8px rgb(0 0 0 / .1);
+  overflow: hidden; touch-action: none;
+}
+.c-item { position: absolute; cursor: grab; touch-action: none; }
+.c-item canvas { width: 100%; height: 100%; display: block; max-width: none; max-height: none; }
+.c-item::after {
+  content: ''; position: absolute; inset: 0;
+  outline: 1px dashed color-mix(in srgb, var(--fg) 35%, transparent); outline-offset: -1px;
+  pointer-events: none;
+}
+.c-item.on { z-index: 5; }
+.c-item.on::after { outline: 2px solid var(--focus); }
+.c-handle {
+  position: absolute; right: -9px; bottom: -9px; width: 22px; height: 22px;
+  border-radius: 50%; background: var(--bg); border: 2px solid var(--fg);
+  cursor: nwse-resize; touch-action: none;
+}
+.c-item:not(.on) .c-handle { display: none; }
+.sheet-tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+.sheet-tools .meta { flex: 1 1 14ch; text-align: left; }
+
+.layout-row { padding: 12px; }
   .layout-opt { padding: 8px 11px; }
   .opt .h { max-width: none; }
   /* 主操作固定在底部，不用为了导出把页面滚回去 */
@@ -219,6 +250,35 @@ body.has-docs .hero h1 { font-size: clamp(19px, 2.4vw, 23px); margin: 0; }
 .opt input { margin: 3px 0 0; accent-color: var(--fg); }
 .opt .t { font-weight: 500; }
 .opt .h { color: var(--fg-faint); font-size: 12.5px; line-height: 1.45; max-width: 30ch; }
+
+/* ---------- 自由排布画布 ---------- */
+.sheet-wrap { display: block; }
+.sheet {
+  position: relative; margin: 0 auto;
+  aspect-ratio: 210 / 297;          /* A4 */
+  max-height: 58vh; width: auto; height: 58vh; max-width: 100%;
+  background: #fff;
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 1px 8px rgb(0 0 0 / .1);
+  overflow: hidden; touch-action: none;
+}
+.c-item { position: absolute; cursor: grab; touch-action: none; }
+.c-item canvas { width: 100%; height: 100%; display: block; max-width: none; max-height: none; }
+.c-item::after {
+  content: ''; position: absolute; inset: 0;
+  outline: 1px dashed color-mix(in srgb, var(--fg) 35%, transparent); outline-offset: -1px;
+  pointer-events: none;
+}
+.c-item.on { z-index: 5; }
+.c-item.on::after { outline: 2px solid var(--focus); }
+.c-handle {
+  position: absolute; right: -9px; bottom: -9px; width: 22px; height: 22px;
+  border-radius: 50%; background: var(--bg); border: 2px solid var(--fg);
+  cursor: nwse-resize; touch-action: none;
+}
+.c-item:not(.on) .c-handle { display: none; }
+.sheet-tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+.sheet-tools .meta { flex: 1 1 14ch; text-align: left; }
 
 .layout-row {
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap;

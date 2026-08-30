@@ -21,12 +21,13 @@ export const LAYOUTS = [
   { id: 'a4-2', page: A4, cols: 1, rows: 2 },
   { id: 'a4-4', page: A4, cols: 2, rows: 2 },
   { id: 'a4-land-1', page: A4_LANDSCAPE, cols: 1, rows: 1 },
+  { id: 'free', page: A4, free: true },                        // 自动铺好，之后可手动挪
 ];
 
 export const layoutById = (id) => LAYOUTS.find((l) => l.id === id) || LAYOUTS[0];
 
 /** 一页 A4 内的格子位置 */
-function slotsOf(layout) {
+export function slotsOf(layout) {
   const { page, cols, rows } = layout;
   const w = (page.w - MARGIN * 2 - GAP * (cols - 1)) / cols;
   const h = (page.h - MARGIN * 2 - GAP * (rows - 1)) / rows;
@@ -60,6 +61,49 @@ function drawContained(ctx, src, slot) {
 }
 
 /**
+ * 自由排布的初始摆放：按页数自动选一个够用的网格铺开，之后用户可以拖。
+ * 返回的坐标是「相对纸张的比例」(0~1)，跟显示尺寸无关，导出时再乘回像素。
+ */
+export function autoArrange(sizes, page = A4) {
+  const n = Math.max(1, sizes.length);
+  const cols = n <= 1 ? 1 : n <= 2 ? 1 : n <= 4 ? 2 : Math.ceil(Math.sqrt(n));
+  const rows = Math.ceil(n / cols);
+  const slots = slotsOf({ page, cols, rows });
+  return sizes.map((s, i) => {
+    const slot = slots[i % slots.length];
+    const scale = Math.min(slot.w / s.w, slot.h / s.h);
+    const w = s.w * scale;
+    const h = s.h * scale;
+    return {
+      x: (slot.x + (slot.w - w) / 2) / page.w,
+      y: (slot.y + (slot.h - h) / 2) / page.h,
+      w: w / page.w,
+      h: h / page.h,
+    };
+  });
+}
+
+/**
+ * 按自由摆放渲染一张纸。
+ * @param {{canvas: HTMLCanvasElement, box: {x,y,w,h}}[]} placed box 是 0~1 比例
+ */
+export function composeFree(placed, page = A4) {
+  const c = document.createElement('canvas');
+  c.width = page.w;
+  c.height = page.h;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, c.width, c.height);
+  ctx.imageSmoothingQuality = 'high';
+  for (const { canvas, box } of placed) {
+    ctx.drawImage(canvas,
+      Math.round(box.x * page.w), Math.round(box.y * page.h),
+      Math.round(box.w * page.w), Math.round(box.h * page.h));
+  }
+  return [c];
+}
+
+/**
  * @param {HTMLCanvasElement[]} sources 处理好的页，按顺序
  * @param {string} layoutId
  * @returns {HTMLCanvasElement[]} 每个元素是一张排好的 A4
@@ -90,6 +134,14 @@ export function compose(sources, layoutId) {
 /** 版式在 UI 上的示意图（纯 CSS 画不出比例，用 SVG） */
 export function layoutIcon(layout) {
   if (!layout.page) return '';
+  if (layout.free) {
+    // 自由排布：画几个错开的框，跟规整网格区分开
+    return '<svg width="16" height="22" viewBox="0 0 16 22" aria-hidden="true">'
+      + '<rect x=".5" y=".5" width="15" height="21" rx="1.5" fill="none" stroke="currentColor" stroke-width="1"/>'
+      + '<rect x="2.4" y="2.6" width="8" height="6" rx=".8" fill="currentColor" opacity=".35"/>'
+      + '<rect x="5.6" y="9.6" width="8" height="5" rx=".8" fill="currentColor" opacity=".35"/>'
+      + '<rect x="2.4" y="15.4" width="6.5" height="4.2" rx=".8" fill="currentColor" opacity=".35"/></svg>';
+  }
   const { cols, rows, page } = layout;
   const land = page.w > page.h;
   const W = land ? 22 : 16, H = land ? 16 : 22;
