@@ -4,7 +4,7 @@ import { STRINGS, validate, LANGS } from './src/i18n.js';
 // 部署目标可配置：GitHub Pages 挂在 /flatpage/ 子路径，自定义域名挂在根路径。
 // 写死任何一个都会让另一个的资源路径和 canonical 全部错位。
 const BASE = process.env.FLATPAGE_BASE || '/';
-const ORIGIN = (process.env.FLATPAGE_ORIGIN || 'https://flatpage.bybrowser.com').replace(/\/$/, '');
+const ORIGIN = (process.env.FLATPAGE_ORIGIN || 'https://flat.bybrowser.com').replace(/\/$/, '');
 // 同样内容部署在多处时，只有正式入口该被索引；其余（GitHub Pages 的演示页）
 // 必须 noindex，否则两边 canonical 各指自己，是重复内容、互相稀释。
 const NOINDEX = process.env.FLATPAGE_NOINDEX === '1';

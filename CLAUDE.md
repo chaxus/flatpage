@@ -69,5 +69,5 @@ npm run build:pages && npm run verify -- /flatpage/
 
 ## 待办
 
-- 域名未绑：canonical 已写死 `bybrowser.com`，现在指着不存在的地址。
+- 域名未绑：canonical 已写死 `flat.bybrowser.com`（子域，绑定中）。
 - 无边框文档的自动检测不可靠，退回手动拖角点时缺少引导。

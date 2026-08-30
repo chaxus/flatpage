@@ -89,7 +89,7 @@ it; in dev it stays a button and swaps text in place.
 canonical, hreflang, JSON-LD, the language-switch link and the sitemap.
 
 ```bash
-npm run build                                   # root path, bybrowser.com
+npm run build                                   # root path, flat.bybrowser.com
 npm run build:pages                             # /flatpage/, github.io
 ```
 
