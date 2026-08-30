@@ -107,8 +107,128 @@ ${urls}
   };
 }
 
+
+/**
+ * Service Worker + PWA + 真 404。
+ *
+ * 首页写着「关掉 Wi-Fi 它照样能用」。没有 SW 的话这是假的 —— 刷新就白屏。
+ *
+ * 缓存策略分两层，因为 wasm 有 1.8MB：
+ *   shell（HTML/CSS/JS，约 30KB）  install 时 precache，首屏代价可忽略
+ *   wasm                          第一次真正用到时才缓存，不拖慢首次访问
+ * 于是「用过一次之后完全离线可用」，而不是「首次访问就先下 1.8MB」。
+ */
+function offlineSupport() {
+  return {
+    name: 'flatpage-offline',
+    apply: 'build',
+    enforce: 'post',
+    generateBundle(_opts, bundle) {
+      const shell = [BASE, BASE + 'zh/', BASE + 'favicon.svg'];
+      for (const name of Object.keys(bundle)) {
+        // wasm 不进 precache：1.8MB，等真的用到再缓存
+        if (name.endsWith('.wasm') || name.endsWith('.html')) continue;
+        shell.push(BASE + name);
+      }
+      // 缓存名带内容指纹，资源一变就换缓存、旧的在 activate 里清掉
+      const version = Object.keys(bundle).filter((n) => !n.endsWith('.html')).sort().join('|');
+      let h = 0;
+      for (let i = 0; i < version.length; i++) h = (h * 31 + version.charCodeAt(i)) | 0;
+      const CACHE = `flatpage-${(h >>> 0).toString(36)}`;
+
+      this.emitFile({ type: 'asset', fileName: 'sw.js', source: `// 构建生成，勿手改
+const CACHE = ${JSON.stringify(CACHE)};
+const SHELL = ${JSON.stringify(shell)};
+const BASE = ${JSON.stringify(BASE)};
+
+self.addEventListener('install', (e) => {
+  e.waitUntil(
+    caches.open(CACHE)
+      .then((c) => c.addAll(SHELL))
+      .then(() => self.skipWaiting())
+  );
+});
+
+self.addEventListener('activate', (e) => {
+  e.waitUntil(
+    caches.keys()
+      .then((keys) => Promise.all(
+        keys.filter((k) => k !== CACHE && k.startsWith('flatpage-')).map((k) => caches.delete(k))
+      ))
+      .then(() => self.clients.claim())
+  );
+});
+
+self.addEventListener('fetch', (e) => {
+  const req = e.request;
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin) return;
+
+  e.respondWith((async () => {
+    const cached = await caches.match(req, { ignoreSearch: true });
+    if (cached) return cached;
+    try {
+      const res = await fetch(req);
+      // wasm 和带指纹的静态资源：取到就存，下次离线可用
+      if (res.ok && (url.pathname.endsWith('.wasm') || url.pathname.startsWith(BASE + 'assets/'))) {
+        const copy = res.clone();
+        caches.open(CACHE).then((c) => c.put(req, copy));
+      }
+      return res;
+    } catch (err) {
+      // 离线且未缓存：导航请求退回首页，其余如实失败
+      if (req.mode === 'navigate') {
+        const shell = await caches.match(BASE, { ignoreSearch: true });
+        if (shell) return shell;
+      }
+      throw err;
+    }
+  })());
+});
+` });
+
+      this.emitFile({ type: 'asset', fileName: 'manifest.webmanifest', source: JSON.stringify({
+        name: 'FlatPage', short_name: 'FlatPage',
+        description: 'Flatten curved photos of documents, entirely in your browser.',
+        start_url: BASE, scope: BASE, display: 'standalone',
+        background_color: '#ffffff', theme_color: '#0a0a0a',
+        icons: [{ src: BASE + 'favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }],
+      }, null, 2) });
+
+      // CF Pages 默认把未匹配路径 fallback 成 index.html + 200，
+      // 于是任意 URL 都是「有效页面」—— soft 404。放 404.html 让它返回真 404。
+      this.emitFile({ type: 'asset', fileName: '404.html', source: `<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Not found — FlatPage</title>
+<style>body{font:15px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+margin:0;min-height:100vh;display:grid;place-items:center;background:#fff;color:#0a0a0a;text-align:center}
+@media(prefers-color-scheme:dark){body{background:#0a0a0a;color:#ededed}}
+a{color:inherit}main{padding:24px}h1{font-size:20px;margin:0 0 8px;font-weight:600}
+p{color:#666;margin:0 0 20px}@media(prefers-color-scheme:dark){p{color:#a1a1a1}}</style>
+</head><body><main>
+<h1>404</h1>
+<p>This page does not exist.<br>此页面不存在。</p>
+<a href="${BASE}">FlatPage</a> · <a href="${BASE}zh/">中文</a>
+</main></body></html>
+` });
+
+      // sw.js 绝不能被长期缓存，否则新版本推不下去
+      this.emitFile({ type: 'asset', fileName: '_headers', source: `/sw.js
+  Cache-Control: no-cache
+/manifest.webmanifest
+  Cache-Control: no-cache
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+` });
+    },
+  };
+}
+
 export default defineConfig({
   base: BASE,
-  plugins: [renderI18n(), seoFiles()],
+  plugins: [renderI18n(), seoFiles(), offlineSupport()],
   build: { assetsInlineLimit: 0 },
 });

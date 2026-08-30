@@ -67,6 +67,14 @@ npm run build:pages && npm run verify -- /flatpage/
 
 外加规矩 5 的浏览器端到端验证 —— 这一条没有脚本能替，必须真的跑一遍。
 
+## 验证离线时注意
+
+**CDP / DevTools 的离线模拟不拦截经过 Service Worker 的请求。** 模拟离线后页面
+照样能用，证明不了任何事。要判定离线是否真的工作，做对照实验：注销 SW + 清空
+caches 后再离线导航，必须得到 `ERR_INTERNET_DISCONNECTED`。
+
+**瞬时 UI（toast 3.6 秒）在自动化里抓不到**，靠 `console.debug` 留痕来确证。
+
 ## 待办
 
 - 域名未绑：canonical 已写死 `flat.bybrowser.com`（子域，绑定中）。

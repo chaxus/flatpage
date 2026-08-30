@@ -32,8 +32,8 @@ export const STRINGS = {
   'privacy.badge': { en: 'Runs entirely offline', zh: '完全离线运行' },
   'privacy.title': { en: 'Your files never leave this device', zh: '文件不会离开这台设备' },
   'privacy.body': {
-    en: 'There is no upload button and no server to upload to. The image is decoded and processed by WebAssembly inside this tab. Turn off your Wi-Fi and it still works — that is the test.',
-    zh: '这里没有「上传」按钮，也没有可上传的服务器。图片由这个标签页内的 WebAssembly 解码和处理。关掉 Wi-Fi 它照样能用 —— 这就是验证方法。',
+    en: 'There is no upload button and no server to upload to. The image is decoded and processed by WebAssembly inside this tab. After the first visit the whole tool is cached, so you can turn off your Wi-Fi and it still works — that is the test.',
+    zh: '这里没有「上传」按钮，也没有可上传的服务器。图片由这个标签页内的 WebAssembly 解码和处理。首次访问后整个工具会被缓存下来，所以你可以关掉 Wi-Fi 再用一次 —— 这就是验证方法。',
   },
 
   'step.detect': { en: 'Finding the page…', zh: '正在找页面边界…' },
@@ -99,6 +99,11 @@ export const STRINGS = {
   'tips.4': {
     en: 'Light from both sides, and turn the flash off. A single overhead lamp casts a shadow into every crease.',
     zh: '两侧打光，关掉闪光灯。头顶单一光源会在每道折痕里投出阴影。',
+  },
+
+  'offline.ready': {
+    en: 'Cached — this tool now works offline',
+    zh: '已缓存 — 现在可以离线使用',
   },
 
   'foot.privacy': { en: 'Privacy', zh: '隐私' },

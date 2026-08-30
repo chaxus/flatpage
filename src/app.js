@@ -25,6 +25,28 @@ let active = -1;
 let reqSeq = 0;
 const pending = new Map();
 
+/* ---------------- offline ---------------- */
+// 首页写着「关掉 Wi-Fi 它照样能用」。没有这段注册，那句话是假的。
+// dev 模式没有 sw.js，跳过。
+if ('serviceWorker' in navigator && !import.meta.env.DEV) {
+  window.addEventListener('load', () => {
+    const base = import.meta.env.BASE_URL || '/';
+    // 页面承诺了「关掉 Wi-Fi 也能用」，那就该让它变成可见的事实。
+    // controller 为空 = 本次是首访，SW 还没接管；它接管时说明缓存已就绪。
+    const firstVisit = !navigator.serviceWorker.controller;
+    navigator.serviceWorker.register(base + 'sw.js', { scope: base }).catch((e) => {
+      console.warn('离线支持不可用:', e.message);   // 注册失败不影响正常使用
+    });
+    if (firstVisit) {
+      navigator.serviceWorker.addEventListener(
+        'controllerchange',
+        () => toast(t('offline.ready')),
+        { once: true },
+      );
+    }
+  });
+}
+
 /* ---------------- i18n / theme ---------------- */
 function applyLang() {
   t = makeT(lang);
@@ -59,6 +81,7 @@ applyLang();
 /* ---------------- toast ---------------- */
 let toastTimer;
 function toast(msg) {
+  console.debug('[flatpage] toast:', msg);   // toast 只显示 3.6s，留一条给排查用
   const el = $('toast');
   el.textContent = msg;
   el.hidden = false;
