@@ -56,12 +56,42 @@ without shipping a few hundred megabytes of weights to the browser.
 For unruled prose the learned models remain the better tool; FlatPage falls back
 to plain perspective correction there.
 
+## Size
+
+The OpenCV build shipped here is compiled specifically for this tool. Upstream
+`opencv.js` builds bundle `dnn`, `objdetect`, `features2d`, `calib3d`, `photo`,
+`video` and `ml`; FlatPage calls seventeen functions across `core` and
+`imgproc`. Whitelisting only those and letting the linker drop the rest:
+
+| | uncompressed | over the wire |
+|---|---|---|
+| upstream full build | 12.7 MB | 3.65 MB (brotli) |
+| **this build** | **1.85 MB** | **~0.53 MB (gzip)** |
+
+Output is unchanged: residual table-line deviation stays at 1.0px mean against
+the Python reference's 0.9px.
+
+The wasm is not fetched until the user picks an image, so first paint is 10 KB
+gzipped.
+
 ## Development
 
 ```bash
 npm install
 npm run dev
 ```
+
+`vendor/opencv/` is committed so a clone builds without a 40-minute OpenCV
+compile. To rebuild it (needs `emscripten` and `cmake`):
+
+```bash
+git clone --depth 1 --branch 4.x https://github.com/opencv/opencv.git
+bash tools/build-opencv.sh path/to/opencv
+```
+
+The whitelist lives in `tools/opencv_js.flatpage.config.py`. Adding an OpenCV
+call to `src/pipeline.js` means adding it there too, or it will be missing at
+runtime.
 
 `tools/dewarp.py` is the reference CLI implementation (OpenCV, Python 3.12):
 
@@ -128,6 +158,35 @@ FlatPage 把它变成裁切好、无阴影、不扭曲的扫描件。**没有上
 浏览器里塞几百 MB 的权重。
 
 对没有格线的纯段落文字，学习模型仍然更强；FlatPage 在那种情况下退回到纯透视校正。
+
+## 体积
+
+这里带的 OpenCV 是为这个工具单独编译的。上游 `opencv.js` 会把 `dnn`、
+`objdetect`、`features2d`、`calib3d`、`photo`、`video`、`ml` 全编进去，
+而 FlatPage 只调用 `core` 和 `imgproc` 里的十七个函数。只白名单这些、
+让链接器丢掉其余：
+
+| | 未压缩 | 实际传输 |
+|---|---|---|
+| 上游全模块 build | 12.7 MB | 3.65 MB（brotli） |
+| **本仓库的 build** | **1.85 MB** | **约 0.53 MB（gzip）** |
+
+输出没有变化：横线残余起伏仍是平均 1.0px，对照 Python 参考实现的 0.9px。
+
+wasm 要等用户选了图才下载，所以首屏只有 10 KB（gzip）。
+
+## 开发
+
+`vendor/opencv/` 已提交进仓库，clone 下来就能构建，不必先花 40 分钟编译
+OpenCV。需要重建时（要装 `emscripten` 和 `cmake`）：
+
+```bash
+git clone --depth 1 --branch 4.x https://github.com/opencv/opencv.git
+bash tools/build-opencv.sh path/to/opencv
+```
+
+白名单在 `tools/opencv_js.flatpage.config.py`。往 `src/pipeline.js` 里加新的
+OpenCV 调用时必须同步加进白名单，否则运行时会找不到那个函数。
 
 ## 隐私
 

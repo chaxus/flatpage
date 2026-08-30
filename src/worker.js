@@ -6,7 +6,8 @@
  *   export   全分辨率跑一次（~2.4s），只在导出时
  * 全分辨率每拖一次跑一遍是不可接受的，这是整个交互的性能前提。
  */
-import cvReady from '@techstark/opencv-js';
+import cvFactory from '../vendor/opencv/opencv.js';
+import wasmUrl from '../vendor/opencv/opencv_js.wasm?url';
 import {
   findQuadAuto, expandQuad, warpQuad, straightenRows,
   flattenIllumination, enhance,
@@ -20,7 +21,10 @@ const docs = new Map(); // id -> { full: Mat, small: Mat, scale: number }
 async function ensureCv() {
   if (cv) return cv;
   post({ type: 'status', stage: 'loading' });
-  cv = await cvReady;
+  // 自建的精简 build：只含 core+imgproc 里用到的函数，1.7MB wasm（上游全模块是 12.7MB）
+  cv = await cvFactory({
+    locateFile: (path) => (path.endsWith('.wasm') ? wasmUrl : path),
+  });
   post({ type: 'status', stage: 'ready' });
   return cv;
 }
