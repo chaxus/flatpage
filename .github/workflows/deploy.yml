@@ -34,6 +34,9 @@ jobs:
           # 不设这两个变量，资源全 404、canonical 也会指向错的地方。
           FLATPAGE_BASE: /${{ github.event.repository.name }}/
           FLATPAGE_ORIGIN: https://${{ github.repository_owner }}.github.io
+          # 这里是开源项目的演示页，正式入口是 flatpage.bybrowser.com。
+          # 不加 noindex 就是两份相同内容各自 canonical，互相稀释权重。
+          FLATPAGE_NOINDEX: '1'
         run: npm run build
 
       # GitHub Pages 默认走 Jekyll，会吞掉下划线开头的路径

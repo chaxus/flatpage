@@ -7,7 +7,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "verify": "python3 tools/verify-dist.py dist",
-    "build:pages": "FLATPAGE_BASE=/flatpage/ FLATPAGE_ORIGIN=https://chaxus.github.io vite build"
+    "build:pages": "FLATPAGE_BASE=/flatpage/ FLATPAGE_ORIGIN=https://chaxus.github.io FLATPAGE_NOINDEX=1 vite build"
   },
   "devDependencies": {
     "typescript": "^7.0.2",

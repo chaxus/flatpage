@@ -41,13 +41,15 @@ def main():
     en = (dist / 'index.html').read_text(encoding='utf-8')
     zh = (dist / 'zh/index.html').read_text(encoding='utf-8')
 
-    # 2. 子路径部署最容易错的：资源前缀
+    # 2. 子路径部署最容易错的：资源前缀。
+    #    判据是「站内绝对路径必须以 base 开头」—— 不能特判 /assets/，
+    #    那样 base 为 / 时会把正确的路径判成错的。
     for name, html in (('index.html', en), ('zh/index.html', zh)):
         for attr in ('src', 'href'):
             for m in re.finditer(rf'{attr}="(/[^"]*)"', html):
                 url = m.group(1)
-                if url.startswith('/assets/') or url == '/favicon.svg':
-                    errors.append(f'{name}: {url} 没带 base 前缀 {base}')
+                if not url.startswith(base):
+                    errors.append(f'{name}: {url} 不在 base {base} 之下')
         need(f'src="{base}assets/' in html, f'{name}: 入口 JS 没带 base 前缀')
 
     # 3. 预渲染是否真的把文案填进去了。

@@ -4,7 +4,10 @@ import { STRINGS, validate, LANGS } from './src/i18n.js';
 // 部署目标可配置：GitHub Pages 挂在 /flatpage/ 子路径，自定义域名挂在根路径。
 // 写死任何一个都会让另一个的资源路径和 canonical 全部错位。
 const BASE = process.env.FLATPAGE_BASE || '/';
-const ORIGIN = (process.env.FLATPAGE_ORIGIN || 'https://bybrowser.com').replace(/\/$/, '');
+const ORIGIN = (process.env.FLATPAGE_ORIGIN || 'https://flatpage.bybrowser.com').replace(/\/$/, '');
+// 同样内容部署在多处时，只有正式入口该被索引；其余（GitHub Pages 的演示页）
+// 必须 noindex，否则两边 canonical 各指自己，是重复内容、互相稀释。
+const NOINDEX = process.env.FLATPAGE_NOINDEX === '1';
 const PATH = { en: BASE, zh: BASE + 'zh/' };
 const urlOf = (lang) => ORIGIN + PATH[lang];
 
@@ -51,6 +54,9 @@ function renderI18n() {
         html = html.replace(/(<meta property="og:description" content=")[^"]*(")/,
           `$1${escAttr(t('meta.desc'))}$2`);
         html = html.replace(/<html lang="[^"]*"/, `<html lang="${lang === 'zh' ? 'zh-CN' : 'en'}"`);
+        if (NOINDEX) {
+          html = html.replace(/(<meta name="robots" content=")[^"]*(")/, '$1noindex,follow$2');
+        }
         html = html.replace(/("url"\s*:\s*")[^"]*(")/, `$1${urlOf('en')}$2`);
 
         const self = urlOf(lang);
@@ -94,7 +100,9 @@ ${urls}
 </urlset>
 ` });
       this.emitFile({ type: 'asset', fileName: 'robots.txt',
-        source: `User-agent: *\nAllow: /\n\nSitemap: ${ORIGIN}${BASE}sitemap.xml\n` });
+        source: NOINDEX
+          ? 'User-agent: *\nDisallow: /\n'
+          : `User-agent: *\nAllow: /\n\nSitemap: ${ORIGIN}${BASE}sitemap.xml\n` });
     },
   };
 }
