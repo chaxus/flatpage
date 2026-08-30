@@ -1,8 +1,12 @@
 import { defineConfig } from 'vite';
 import { STRINGS, validate, LANGS } from './src/i18n.js';
 
-const SITE = 'https://bybrowser.com';
-const PATH = { en: '/', zh: '/zh/' };
+// 部署目标可配置：GitHub Pages 挂在 /flatpage/ 子路径，自定义域名挂在根路径。
+// 写死任何一个都会让另一个的资源路径和 canonical 全部错位。
+const BASE = process.env.FLATPAGE_BASE || '/';
+const ORIGIN = (process.env.FLATPAGE_ORIGIN || 'https://bybrowser.com').replace(/\/$/, '');
+const PATH = { en: BASE, zh: BASE + 'zh/' };
+const urlOf = (lang) => ORIGIN + PATH[lang];
 
 /**
  * 构建时把双语文案渲染进 HTML。
@@ -47,21 +51,22 @@ function renderI18n() {
         html = html.replace(/(<meta property="og:description" content=")[^"]*(")/,
           `$1${escAttr(t('meta.desc'))}$2`);
         html = html.replace(/<html lang="[^"]*"/, `<html lang="${lang === 'zh' ? 'zh-CN' : 'en'}"`);
+        html = html.replace(/("url"\s*:\s*")[^"]*(")/, `$1${urlOf('en')}$2`);
 
-        const self = SITE + PATH[lang];
+        const self = urlOf(lang);
         html = html.replace(/(<link rel="canonical" href=")[^"]*(")/, `$1${self}$2`);
         html = html.replace(/(<meta property="og:url" content=")[^"]*(")/, `$1${self}$2`);
 
         const alts = LANGS.map((l) =>
-          `<link rel="alternate" hreflang="${l === 'zh' ? 'zh-Hans' : 'en'}" href="${SITE}${PATH[l]}">`
-        ).join('\n') + `\n<link rel="alternate" hreflang="x-default" href="${SITE}/">`;
+          `<link rel="alternate" hreflang="${l === 'zh' ? 'zh-Hans' : 'en'}" href="${urlOf(l)}">`
+        ).join('\n') + `\n<link rel="alternate" hreflang="x-default" href="${urlOf('en')}">`;
         html = html.replace('</head>', alts + '\n</head>');
 
         // 语言切换按钮变成真链接，让爬虫能顺着爬到另一语言版本
         const other = lang === 'zh' ? 'en' : 'zh';
         html = html.replace(
           /<button class="ghost" id="langBtn"[^>]*>[\s\S]*?<\/button>/,
-          `<a class="ghost" id="langBtn" href="${PATH[other]}" hreflang="${other === 'zh' ? 'zh-Hans' : 'en'}">${other === 'zh' ? '中文' : 'EN'}</a>`,
+          `<a class="ghost" id="langBtn" href="${PATH[other]}" hreflang="${other === 'zh' ? 'zh-Hans' : 'en'}">${other === 'zh' ? '中文' : 'EN'}</a>`,  // PATH 已含 BASE
         );
 
         if (lang === 'en') bundle[entry].source = html;
@@ -78,9 +83,9 @@ function seoFiles() {
     generateBundle() {
       const now = new Date().toISOString().slice(0, 10);
       const urls = LANGS.map((l) => `  <url>
-    <loc>${SITE}${PATH[l]}</loc>
+    <loc>${urlOf(l)}</loc>
     <lastmod>${now}</lastmod>
-${LANGS.map((a) => `    <xhtml:link rel="alternate" hreflang="${a === 'zh' ? 'zh-Hans' : 'en'}" href="${SITE}${PATH[a]}"/>`).join('\n')}
+${LANGS.map((a) => `    <xhtml:link rel="alternate" hreflang="${a === 'zh' ? 'zh-Hans' : 'en'}" href="${urlOf(a)}"/>`).join('\n')}
   </url>`).join('\n');
       this.emitFile({ type: 'asset', fileName: 'sitemap.xml',
         source: `<?xml version="1.0" encoding="UTF-8"?>
@@ -89,12 +94,13 @@ ${urls}
 </urlset>
 ` });
       this.emitFile({ type: 'asset', fileName: 'robots.txt',
-        source: `User-agent: *\nAllow: /\n\nSitemap: ${SITE}/sitemap.xml\n` });
+        source: `User-agent: *\nAllow: /\n\nSitemap: ${ORIGIN}${BASE}sitemap.xml\n` });
     },
   };
 }
 
 export default defineConfig({
+  base: BASE,
   plugins: [renderI18n(), seoFiles()],
   build: { assetsInlineLimit: 0 },
 });

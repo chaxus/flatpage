@@ -1,0 +1,69 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同时只跑一个部署，但不取消进行中的那个 —— 半途取消会留下不完整的站点
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build
+        env:
+          # Pages 的项目站点挂在 /<repo>/ 子路径下，不是根路径。
+          # 不设这两个变量，资源全 404、canonical 也会指向错的地方。
+          FLATPAGE_BASE: /${{ github.event.repository.name }}/
+          FLATPAGE_ORIGIN: https://${{ github.repository_owner }}.github.io
+        run: npm run build
+
+      # GitHub Pages 默认走 Jekyll，会吞掉下划线开头的路径
+      - run: touch dist/.nojekyll
+
+      - name: Verify build output
+        run: |
+          set -e
+          test -f dist/index.html || { echo "缺 index.html"; exit 1; }
+          test -f dist/zh/index.html || { echo "缺中文版"; exit 1; }
+          test -f dist/sitemap.xml || { echo "缺 sitemap"; exit 1; }
+          ls dist/assets/*.wasm >/dev/null || { echo "缺 opencv wasm"; exit 1; }
+          # 子路径部署最容易错的就是资源前缀，直接断言
+          grep -q 'src="/${{ github.event.repository.name }}/assets/' dist/index.html \
+            || { echo "资源路径没带 base 前缀"; exit 1; }
+          # 中文版必须真的有中文，防止预渲染悄悄退化成空壳
+          n=$(grep -oE '[一-龥]' dist/zh/index.html | wc -l)
+          [ "$n" -gt 300 ] || { echo "中文版只有 $n 个中文字符，预渲染可能失效"; exit 1; }
+          echo "构建产物检查通过（中文字符 $n 个）"
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
