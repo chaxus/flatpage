@@ -1,56 +1,25 @@
-/* FlatPage — 单色（黑白），蓝只用于链接与焦点环 */
+/* FlatPage — 建立在 ranui 的设计 token 之上（Geist 单色）。
+ *
+ * 这里不再自己定义调色板和暗色规则：颜色、间距、圆角、阴影、字号全部来自
+ * `ranui/style` 的 --ran-* token，明暗切换由 `ranui/theme` 的 initTheme 统一管。
+ * 下面这层别名只是把 ranui 的语义 token 映射成本项目里短一点的名字，
+ * 让页面自有的部分（画布、放大镜、角点覆盖层）跟组件保持同一套观感。
+ */
 :root {
-  --bg: #fff;
-  --bg-sunken: #fafafa;
-  --bg-raised: #fff;
-  --fg: #0a0a0a;
-  --fg-muted: #666;
-  --fg-faint: #999;
-  --line: #e5e5e5;
-  --line-strong: #d4d4d4;
-  --primary: #0a0a0a;
-  --primary-text: #fff;
-  --focus: #0070f3;
-  --danger: #b91c1c;
-  --radius: 8px;
+  --bg: var(--ran-color-bg);
+  --bg-sunken: var(--ran-color-bg-subtle);
+  --bg-raised: var(--ran-color-bg-elevated);
+  --fg: var(--ran-color-text);
+  --fg-muted: var(--ran-color-text-secondary);
+  --fg-faint: var(--ran-color-text-disabled);
+  --line: var(--ran-color-border-secondary);
+  --line-strong: var(--ran-color-border);
+  --primary: var(--ran-color-primary);
+  --primary-text: var(--ran-color-primary-text);
+  --focus: var(--ran-color-link);
+  --danger: var(--ran-color-danger);
+  --radius: var(--ran-radius-md);
   --maxw: 1180px;
-  color-scheme: light;
-}
-:root[data-theme='dark'],
-html:not([data-theme='light']) {
-  color-scheme: light;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --bg: #0a0a0a;
-    --bg-sunken: #111;
-    --bg-raised: #161616;
-    --fg: #ededed;
-    --fg-muted: #a1a1a1;
-    --fg-faint: #6b6b6b;
-    --line: #262626;
-    --line-strong: #363636;
-    --primary: #ededed;
-    --primary-text: #0a0a0a;
-    --focus: #3b9eff;
-    --danger: #f87171;
-    color-scheme: dark;
-  }
-}
-:root[data-theme='dark'] {
-  --bg: #0a0a0a;
-  --bg-sunken: #111;
-  --bg-raised: #161616;
-  --fg: #ededed;
-  --fg-muted: #a1a1a1;
-  --fg-faint: #6b6b6b;
-  --line: #262626;
-  --line-strong: #363636;
-  --primary: #ededed;
-  --primary-text: #0a0a0a;
-  --focus: #3b9eff;
-  --danger: #f87171;
-  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -81,12 +50,19 @@ header {
 .brand { font-weight: 620; letter-spacing: -0.02em; font-size: 16px; display: flex; gap: 8px; align-items: center; }
 .brand svg { display: block; }
 .hdr .sp { flex: 1; }
+/* 只剩链接形态的控件在用（语言切换在构建后是 <a>，GitHub 本来就是链接）。
+   按钮已全部换成 r-button；这里对齐它的尺寸和观感。 */
 .ghost {
-  border: 1px solid var(--line-strong); background: transparent; color: var(--fg);
-  border-radius: 6px; height: 30px; padding: 0 10px; font: inherit; font-size: 13px;
-  cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid var(--ran-color-border);
+  background: transparent; color: var(--ran-color-text);
+  border-radius: var(--ran-radius-md);
+  height: 32px; padding: 0 var(--ran-space-3);
+  font: inherit; font-size: var(--ran-text-button-size, 14px);
+  font-weight: var(--ran-text-button-weight, 500);
+  cursor: pointer; display: inline-flex; align-items: center; gap: var(--ran-space-2);
+  text-decoration: none;
 }
-.ghost:hover { background: var(--bg-sunken); }
+.ghost:hover { background: var(--ran-color-bg-hover); border-color: var(--ran-color-border-hover); }
 
 /* ---------- hero ---------- */
 .hero { padding: 72px 0 40px; text-align: center; transition: padding .2s; }
@@ -118,16 +94,7 @@ body.has-docs .hero h1 { font-size: clamp(19px, 2.4vw, 23px); margin: 0; }
   transition: border-color .15s, background .15s;
 }
 .drop.over { border-color: var(--fg); background: var(--bg-raised); }
-.btn {
-  border: 0; background: var(--primary); color: var(--primary-text);
-  border-radius: 7px; height: 40px; padding: 0 20px; font: inherit;
-  font-weight: 520; cursor: pointer;
-}
-.btn:hover { opacity: .88; }
-.btn[disabled] { opacity: .45; cursor: not-allowed; }
-.btn.sm { height: 32px; padding: 0 13px; font-size: 13.5px; }
-.btn.sec { background: transparent; color: var(--fg); border: 1px solid var(--line-strong); }
-.btn.sec:hover { background: var(--bg-sunken); }
+
 .drop-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 .drop .hint { margin-top: 12px; color: var(--fg-faint); font-size: 13.5px; }
 /* 页面获得焦点时提示可以直接粘贴 */
@@ -246,8 +213,8 @@ body.has-docs .hero h1 { font-size: clamp(19px, 2.4vw, 23px); margin: 0; }
 
 /* ---------- options ---------- */
 .opts { display: flex; flex-wrap: wrap; gap: 10px 22px; padding: 14px; border-top: 1px solid var(--line); }
-.opt { display: flex; gap: 9px; align-items: flex-start; cursor: pointer; font-size: 13.5px; }
-.opt input { margin: 3px 0 0; accent-color: var(--fg); }
+.opt { display: flex; gap: 9px; align-items: flex-start; font-size: 13.5px; }
+.opt r-checkbox { margin-top: 2px; flex: 0 0 auto; }
 .opt .t { font-weight: 500; }
 .opt .h { color: var(--fg-faint); font-size: 12.5px; line-height: 1.45; max-width: 30ch; }
 

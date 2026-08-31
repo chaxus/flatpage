@@ -8,23 +8,26 @@
 
 const enc = new TextEncoder();
 
-/**
- * @param {{jpeg: Uint8Array, width: number, height: number}[]} pages
- * @returns {Blob}
- */
-export function buildPdf(pages) {
+export interface PdfPage {
+  /** 必须 backed by ArrayBuffer（不是 SharedArrayBuffer）—— Blob 只收这种 */
+  jpeg: Uint8Array<ArrayBuffer>;
+  width: number;
+  height: number;
+}
+
+export function buildPdf(pages: readonly PdfPage[]): Blob {
   if (!pages.length) throw new Error('no pages');
 
-  const parts = [];
+  const parts: Uint8Array<ArrayBuffer>[] = [];
   let len = 0;
-  const push = (d) => {
+  const push = (d: string | Uint8Array<ArrayBuffer>): void => {
     const b = typeof d === 'string' ? enc.encode(d) : d;
     parts.push(b);
     len += b.length;
   };
 
-  const offsets = [];               // offsets[objNum] = 字节偏移
-  const obj = (n, body, stream) => {
+  const offsets: number[] = [];      // offsets[objNum] = 字节偏移
+  const obj = (n: number, body: string, stream?: Uint8Array<ArrayBuffer>): void => {
     offsets[n] = len;
     push(`${n} 0 obj\n${body}\n`);
     if (stream) {
@@ -40,9 +43,9 @@ export function buildPdf(pages) {
   push(new Uint8Array([0x25, 0xe2, 0xe3, 0xcf, 0xd3, 0x0a]));
 
   const N = pages.length;
-  const pageNum = (i) => 3 + i * 3;
-  const contentNum = (i) => 4 + i * 3;
-  const imageNum = (i) => 5 + i * 3;
+  const pageNum = (i: number): number => 3 + i * 3;
+  const contentNum = (i: number): number => 4 + i * 3;
+  const imageNum = (i: number): number => 5 + i * 3;
 
   const kids = pages.map((_, i) => `${pageNum(i)} 0 R`).join(' ');
   obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
@@ -79,7 +82,13 @@ export function buildPdf(pages) {
 }
 
 /** canvas -> JPEG 字节 */
-export async function canvasToJpegBytes(canvas, quality = 0.92) {
-  const blob = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', quality));
+export async function canvasToJpegBytes(
+  canvas: HTMLCanvasElement,
+  quality = 0.92,
+): Promise<Uint8Array<ArrayBuffer>> {
+  const blob = await new Promise<Blob | null>((res) =>
+    canvas.toBlob(res, 'image/jpeg', quality),
+  );
+  if (!blob) throw new Error('canvas.toBlob 返回空');
   return new Uint8Array(await blob.arrayBuffer());
 }

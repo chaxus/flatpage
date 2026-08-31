@@ -4,13 +4,19 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "tsc --noEmit -p tsconfig.json && vite build",
     "preview": "vite preview",
     "verify": "python3 tools/verify-dist.py dist",
-    "build:pages": "FLATPAGE_BASE=/flatpage/ FLATPAGE_ORIGIN=https://chaxus.github.io FLATPAGE_NOINDEX=1 vite build"
+    "build:pages": "FLATPAGE_BASE=/flatpage/ FLATPAGE_ORIGIN=https://chaxus.github.io FLATPAGE_NOINDEX=1 vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {
+    "@types/node": "^26.4.0",
     "typescript": "^7.0.2",
     "vite": "^8.2.2"
+  },
+  "dependencies": {
+    "ranui": "^0.5.0-alpha.6",
+    "ranuts": "^0.4.1-alpha.2"
   }
 }

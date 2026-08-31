@@ -1,13 +1,34 @@
 /**
- * 文档展平管线 —— OpenCV.js 移植版（对照 dewarp.py）
+ * 文档展平管线 —— OpenCV.js 移植版（对照 tools/dewarp.py）
  * 所有运算在浏览器内完成，图片不出本机。
  */
+import type { CV, Mat } from '../types/opencv';
+
+export interface Point {
+  x: number;
+  y: number;
+}
+
+/** 四角，顺序固定为 左上/右上/右下/左下 */
+export type Quad = [Point, Point, Point, Point];
+
+/** 附带「框占画面多少」，UI 用它判断这次自动识别可不可信 */
+export interface DetectedQuad extends Array<Point> {
+  coverage?: number;
+}
+
+export interface StraightenResult {
+  mat: Mat;
+  lines: number;
+  maxWarp: number;
+}
 
 /** 四边形按 左上/右上/右下/左下 排序 */
-export function orderQuad(pts) {
+export function orderQuad(pts: readonly Point[]): Point[] {
   const s = pts.map((p) => p.x + p.y);
   const d = pts.map((p) => p.x - p.y);
-  const at = (arr, fn) => pts[arr.indexOf(fn(...arr))];
+  const at = (arr: number[], fn: (...v: number[]) => number): Point =>
+    pts[arr.indexOf(fn(...arr))]!;
   return [
     at(s, Math.min), // tl
     at(d, Math.max), // tr
@@ -17,8 +38,8 @@ export function orderQuad(pts) {
 }
 
 /** 相对中心放大 pct%，把卡太紧的检测框放开 */
-export function expandQuad(quad, pct) {
-  if (!pct) return quad;
+export function expandQuad(quad: readonly Point[], pct: number): Point[] {
+  if (!pct) return [...quad];
   const cx = quad.reduce((a, p) => a + p.x, 0) / 4;
   const cy = quad.reduce((a, p) => a + p.y, 0) / 4;
   const k = 1 + pct / 100;
@@ -41,7 +62,12 @@ export function expandQuad(quad, pct) {
  * 单一阈值参数不够：同一套参数在 OpenCV 5.0 上能命中的图，4.x 上会一个四边形都
  * 找不到（本仓库自建的是 4.x）。多组参数轮流试，成本只是几毫秒。
  */
-export function findQuadAuto(cv, src, minAreaFrac = 0.06, maxAreaFrac = 0.85) {
+export function findQuadAuto(
+  cv: CV,
+  src: Mat,
+  minAreaFrac = 0.06,
+  maxAreaFrac = 0.85,
+): DetectedQuad | null {
   const scale = 1000 / Math.max(src.rows, src.cols);
   const small = new cv.Mat();
   cv.resize(src, small, new cv.Size(0, 0), scale, scale, cv.INTER_AREA);
@@ -61,8 +87,8 @@ export function findQuadAuto(cv, src, minAreaFrac = 0.06, maxAreaFrac = 0.85) {
   const minArea = minAreaFrac * frameArea;
   const maxArea = maxAreaFrac * frameArea;
 
-  let result = null;
-  let bestFallback = null;   // 最大轮廓，四边形都找不到时用它的外接矩形
+  let result: { pts: Point[]; area: number } | null = null;
+  let bestFallback: { mat: Mat; area: number } | null = null;
 
   for (const [block, C] of [[31, 10], [51, 12], [21, 8], [41, 6]]) {
     const bw = new cv.Mat();
@@ -75,7 +101,7 @@ export function findQuadAuto(cv, src, minAreaFrac = 0.06, maxAreaFrac = 0.85) {
     const hier = new cv.Mat();
     cv.findContours(bw, contours, hier, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
 
-    let best = null;
+    let best: { pts: Point[]; area: number } | null = null;
     let bestArea = minArea;
     for (let i = 0; i < contours.size(); i++) {
       const c = contours.get(i);
@@ -93,9 +119,8 @@ export function findQuadAuto(cv, src, minAreaFrac = 0.06, maxAreaFrac = 0.85) {
             const ap = new cv.Mat();
             cv.approxPolyDP(c, ap, eps * peri, true);
             if (ap.rows === 4 && cv.isContourConvex(ap)) {
-              const pts = [];
+              const pts: Point[] = [];
               for (let j = 0; j < 4; j++) pts.push({ x: ap.intAt(j, 0), y: ap.intAt(j, 1) });
-              if (best) best.pts = null;
               best = { pts, area };
               bestArea = area;
               ap.delete();
@@ -127,15 +152,17 @@ export function findQuadAuto(cv, src, minAreaFrac = 0.06, maxAreaFrac = 0.85) {
   [small, gray].forEach((m) => m.delete());
   if (!result) return null;
 
-  const quad = orderQuad(result.pts.map((p) => ({ x: p.x / scale, y: p.y / scale })));
+  const quad: DetectedQuad = orderQuad(
+    result.pts.map((p) => ({ x: p.x / scale, y: p.y / scale })),
+  );
   quad.coverage = coverage;
   return quad;
 }
 
 /** 四点透视校正 */
-export function warpQuad(cv, src, quad) {
-  const [tl, tr, br, bl] = quad;
-  const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+export function warpQuad(cv: CV, src: Mat, quad: readonly Point[]): Mat {
+  const [tl, tr, br, bl] = quad as [Point, Point, Point, Point];
+  const dist = (a: Point, b: Point): number => Math.hypot(a.x - b.x, a.y - b.y);
   const w = Math.round(Math.max(dist(br, bl), dist(tr, tl)));
   const h = Math.round(Math.max(dist(tr, br), dist(tl, bl)));
   const srcTri = cv.matFromArray(4, 1, cv.CV_32FC2,
@@ -154,7 +181,7 @@ export function warpQuad(cv, src, quad) {
  * 用表格横线把残余弯曲拉直。
  * 横线本该是直的 —— 它弯了多少，就是该处的形变量。
  */
-export function straightenRows(cv, src, minLines = 4) {
+export function straightenRows(cv: CV, src: Mat, minLines = 4): StraightenResult {
   const h = src.rows, w = src.cols;
   const gray = new cv.Mat();
   cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
@@ -191,12 +218,12 @@ export function straightenRows(cv, src, minLines = 4) {
   }
 
   const NB = 48;
-  const binOf = (x) => {
+  const binOf = (x: number): number => {
     const b = Math.floor(((x - x0) / (x1 - x0)) * NB);
     return b < 0 || b >= NB ? -1 : b;
   };
-  const slot = new Map(keep.map((l, idx) => [l, idx]));
-  const buckets = Array.from({ length: keep.length * NB }, () => []);
+  const slot = new Map<number, number>(keep.map((l, idx) => [l, idx]));
+  const buckets: number[][] = Array.from({ length: keep.length * NB }, () => []);
 
   // labels 只遍历一次（5M+ 像素，遍历多次会明显卡）
   const lab = labels.data32S;
@@ -204,27 +231,28 @@ export function straightenRows(cv, src, minLines = 4) {
     const row = y * w;
     for (let x = x0; x < x1; x++) {
       const l = lab[row + x];
-      if (l === 0) continue;
+      if (!l) continue;                 // 0 = 背景；undefined 不会发生但类型上要排除
       const si = slot.get(l);
       if (si === undefined) continue;
+      const bucketBase = si * NB;
       const b = binOf(x);
-      if (b >= 0) buckets[si * NB + b].push(y);
+      if (b >= 0) buckets[bucketBase + b]!.push(y);
     }
   }
 
-  const median = (a) => {
+  const median = (a: number[]): number => {
     if (!a.length) return NaN;
     a.sort((p, q) => p - q);
     const m = a.length >> 1;
-    return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+    return a.length % 2 ? a[m]! : (a[m - 1]! + a[m]!) / 2;
   };
 
-  const curves = [];
+  const curves: number[][] = [];
   for (let si = 0; si < keep.length; si++) {
-    const prof = [];
+    const prof: number[] = [];
     let ok = true;
     for (let b = 0; b < NB; b++) {
-      const arr = buckets[si * NB + b];
+      const arr = buckets[si * NB + b]!;
       if (arr.length < 3) { ok = false; break; }
       prof.push(median(arr));
     }
@@ -235,23 +263,23 @@ export function straightenRows(cv, src, minLines = 4) {
     return { mat: src.clone(), lines: curves.length, maxWarp: 0 };
   }
 
-  const mean = (a) => a.reduce((s, v) => s + v, 0) / a.length;
+  const mean = (a: readonly number[]): number => a.reduce((s2, v) => s2 + v, 0) / a.length;
   curves.sort((a, b) => mean(a) - mean(b));
   const y0 = curves.map(mean);
   const bx = Array.from({ length: NB },
     (_, b) => x0 + ((b + 0.5) * (x1 - x0)) / NB);
 
   // 沿 x 把每条线的偏移插值到全宽（范围外 clamp 成端点值）
-  const interp1 = (xs, ys, x) => {
-    if (x <= xs[0]) return ys[0];
-    if (x >= xs[xs.length - 1]) return ys[ys.length - 1];
+  const interp1 = (xs: readonly number[], ys: readonly number[], x: number): number => {
+    if (x <= xs[0]!) return ys[0]!;
+    if (x >= xs[xs.length - 1]!) return ys[ys.length - 1]!;
     let i = 1;
-    while (i < xs.length && xs[i] < x) i++;
-    const t = (x - xs[i - 1]) / (xs[i] - xs[i - 1]);
-    return ys[i - 1] * (1 - t) + ys[i] * t;
+    while (i < xs.length && xs[i]! < x) i++;
+    const t = (x - xs[i - 1]!) / (xs[i]! - xs[i - 1]!);
+    return ys[i - 1]! * (1 - t) + ys[i]! * t;
   };
   const offs = curves.map((c, ci) => {
-    const dy = c.map((v) => v - y0[ci]);
+    const dy = c.map((v) => v - y0[ci]!);
     const row = new Float32Array(w);
     for (let x = 0; x < w; x++) row[x] = interp1(bx, dy, x);
     return row;
@@ -264,13 +292,13 @@ export function straightenRows(cv, src, minLines = 4) {
   let maxWarp = 0;
   for (let y = 0; y < h; y++) {
     let i = 1;
-    while (i < y0.length - 1 && y0[i] < y) i++;
-    const lo = y0[i - 1], hi = y0[i];
+    while (i < y0.length - 1 && y0[i]! < y) i++;
+    const lo = y0[i - 1]!, hi = y0[i]!;
     const t = Math.min(1, Math.max(0, (y - lo) / Math.max(hi - lo, 1e-6)));
-    const a = offs[i - 1], b = offs[i];
+    const a = offs[i - 1]!, b = offs[i]!;
     const row = y * w;
     for (let x = 0; x < w; x++) {
-      const d = a[x] * (1 - t) + b[x] * t;
+      const d = a[x]! * (1 - t) + b[x]! * t;
       if (Math.abs(d) > maxWarp) maxWarp = Math.abs(d);
       mx[row + x] = x;
       my[row + x] = y + d;
@@ -285,7 +313,7 @@ export function straightenRows(cv, src, minLines = 4) {
 }
 
 /** 去阴影：只动 LAB 的 L 通道，颜色（红章）原样保留 */
-export function flattenIllumination(cv, src, strength = 1.0) {
+export function flattenIllumination(cv: CV, src: Mat, strength = 1.0): Mat {
   if (strength <= 0) return src.clone();
   const rgb = new cv.Mat();
   cv.cvtColor(src, rgb, cv.COLOR_RGBA2RGB);
@@ -309,11 +337,11 @@ export function flattenIllumination(cv, src, strength = 1.0) {
 
   const Ld = L.data, bd = bg.data;
   let sum = 0;
-  for (let i = 0; i < bd.length; i++) sum += bd[i];
+  for (let i = 0; i < bd.length; i++) sum += bd[i]!;
   const bgMean = sum / bd.length;
   for (let i = 0; i < Ld.length; i++) {
-    const flat = (Ld[i] / Math.max(bd[i], 1)) * bgMean;
-    const v = Ld[i] * (1 - strength) + flat * strength;
+    const flat = (Ld[i]! / Math.max(bd[i]!, 1)) * bgMean;
+    const v = Ld[i]! * (1 - strength) + flat * strength;
     Ld[i] = v < 0 ? 0 : v > 255 ? 255 : v;
   }
 
@@ -326,7 +354,7 @@ export function flattenIllumination(cv, src, strength = 1.0) {
 }
 
 /** 轻度拉对比。刻意不做二值化 —— 防伪底纹和印章要留住 */
-export function enhance(cv, src, loPct = 1.0, hiPct = 99.5) {
+export function enhance(cv: CV, src: Mat, loPct = 1.0, hiPct = 99.5): Mat {
   const rgb = new cv.Mat();
   cv.cvtColor(src, rgb, cv.COLOR_RGBA2RGB);
   const lab = new cv.Mat();
@@ -336,18 +364,18 @@ export function enhance(cv, src, loPct = 1.0, hiPct = 99.5) {
   const L = ch.get(0), Ld = L.data;
 
   const hist = new Uint32Array(256);
-  for (let i = 0; i < Ld.length; i++) hist[Ld[i]]++;
+  for (let i = 0; i < Ld.length; i++) hist[Ld[i]!]!++;
   const total = Ld.length;
-  const pct = (p) => {
+  const pct = (p: number): number => {
     let acc = 0, target = (p / 100) * total;
-    for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc >= target) return v; }
+    for (let v = 0; v < 256; v++) { acc += hist[v]!; if (acc >= target) return v; }
     return 255;
   };
   const lo = pct(loPct), hi = pct(hiPct);
   if (hi - lo >= 1) {
     const g = 255 / (hi - lo);
     for (let i = 0; i < Ld.length; i++) {
-      const v = (Ld[i] - lo) * g;
+      const v = (Ld[i]! - lo) * g;
       Ld[i] = v < 0 ? 0 : v > 255 ? 255 : v;
     }
   }

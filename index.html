@@ -15,6 +15,7 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="theme-color" content="#0a0a0a">
+<link rel="stylesheet" href="/node_modules/ranui/dist/ranui.css">
 <link rel="stylesheet" href="/src/styles.css">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebApplication",
@@ -39,7 +40,7 @@
     </span>
     <span class="sp"></span>
     <button class="ghost" id="langBtn" type="button" aria-label="Language">中文</button>
-    <button class="ghost" id="themeBtn" type="button" aria-label="Theme">◐</button>
+    <r-theme-switch id="themeBtn" aria-label="Theme"></r-theme-switch>
     <a class="ghost" href="https://github.com/chaxus/flatpage" rel="noopener" target="_blank">GitHub</a>
   </div>
 </header>
@@ -51,8 +52,8 @@
     <p class="sub" data-i18n="hero.sub"></p>
     <div class="drop" id="drop">
       <div class="drop-actions">
-        <button class="btn" id="pickBtn" type="button" data-i18n="hero.cta"></button>
-        <button class="btn sec" id="pasteBtn" type="button" data-i18n="hero.paste"></button>
+        <r-button id="pickBtn" type="primary" data-i18n="hero.cta"></r-button>
+        <r-button id="pasteBtn" data-i18n="hero.paste"></r-button>
       </div>
       <div class="hint" data-i18n="hero.drop"></div>
       <input type="file" id="file" accept="image/*,.heic,.heif" multiple hidden>
@@ -64,8 +65,8 @@
     <div class="panes">
       <div class="pane">
         <h2><span data-i18n="edit.title"></span><span class="sp"></span>
-          <button class="ghost" id="resetBtn" type="button" data-i18n="edit.reset"></button>
-          <button class="ghost" id="fullBtn" type="button" data-i18n="edit.full"></button>
+          <r-button id="resetBtn" type="text" data-i18n="edit.reset"></r-button>
+          <r-button id="fullBtn" type="text" data-i18n="edit.full"></r-button>
         </h2>
         <div class="body">
           <div class="stage" id="stage">
@@ -90,19 +91,19 @@
           <div class="sheet-wrap" id="sheetWrap" hidden>
             <div class="sheet" id="sheet"></div>
             <div class="sheet-tools">
-              <button class="ghost" id="rearrangeBtn" type="button" data-i18n="canvas.rearrange"></button>
-              <button class="ghost" id="frontBtn" type="button" data-i18n="canvas.front"></button>
+              <r-button id="rearrangeBtn" type="text" data-i18n="canvas.rearrange"></r-button>
+              <r-button id="frontBtn" type="text" data-i18n="canvas.front"></r-button>
               <span class="meta" data-i18n="canvas.hint"></span>
             </div>
           </div>
         </div>
         <div class="opts">
-          <label class="opt"><input type="checkbox" id="optGrid" checked>
-            <span><span class="t" data-i18n="opt.grid"></span><br><span class="h" data-i18n="opt.gridHint"></span></span></label>
-          <label class="opt"><input type="checkbox" id="optLight" checked>
-            <span><span class="t" data-i18n="opt.light"></span><br><span class="h" data-i18n="opt.lightHint"></span></span></label>
-          <label class="opt"><input type="checkbox" id="optColour" checked>
-            <span><span class="t" data-i18n="opt.colour"></span><br><span class="h" data-i18n="opt.colourHint"></span></span></label>
+          <div class="opt"><r-checkbox id="optGrid" checked></r-checkbox>
+            <span><span class="t" data-i18n="opt.grid"></span><br><span class="h" data-i18n="opt.gridHint"></span></span></div>
+          <div class="opt"><r-checkbox id="optLight" checked></r-checkbox>
+            <span><span class="t" data-i18n="opt.light"></span><br><span class="h" data-i18n="opt.lightHint"></span></span></div>
+          <div class="opt"><r-checkbox id="optColour" checked></r-checkbox>
+            <span><span class="t" data-i18n="opt.colour"></span><br><span class="h" data-i18n="opt.colourHint"></span></span></div>
         </div>
         <div class="layout-row">
           <span class="lbl" data-i18n="layout.title"></span>
@@ -110,14 +111,14 @@
           <span class="meta" id="sheetCount"></span>
         </div>
         <div class="actions">
-          <button class="btn sm" id="dlBtn" type="button" data-i18n="out.download"></button>
-          <button class="btn sm sec" id="dlAllBtn" type="button" data-i18n="out.downloadAll" hidden></button>
-          <button class="btn sm sec" id="pdfBtn" type="button" data-i18n="out.pdf"></button>
+          <r-button id="dlBtn" type="primary" data-i18n="out.download"></r-button>
+          <r-button id="dlAllBtn" data-i18n="out.downloadAll" hidden></r-button>
+          <r-button id="pdfBtn" data-i18n="out.pdf"></r-button>
           <span class="sp"></span>
-          <button class="ghost" id="applyAllBtn" type="button" data-i18n="out.applyAll" hidden></button>
-          <button class="ghost" id="pasteBtn2" type="button" data-i18n="hero.paste"></button>
-          <button class="ghost" id="addBtn" type="button" data-i18n="out.add"></button>
-          <button class="ghost" id="clearBtn" type="button" data-i18n="out.clear"></button>
+          <r-button id="applyAllBtn" type="text" data-i18n="out.applyAll" hidden></r-button>
+          <r-button id="pasteBtn2" type="text" data-i18n="hero.paste"></r-button>
+          <r-button id="addBtn" type="text" data-i18n="out.add"></r-button>
+          <r-button id="clearBtn" type="text" data-i18n="out.clear"></r-button>
         </div>
       </div>
     </div>
